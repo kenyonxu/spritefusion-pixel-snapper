@@ -13,6 +13,10 @@ rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
 rand_chacha = "0.3"
 
+# Native CLI dependencies
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1.10"
+
 # WASM-specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
