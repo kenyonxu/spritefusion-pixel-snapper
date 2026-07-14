@@ -1,6 +1,6 @@
 # Sprite Fusion Pixel Snapper
 
-<p align="center">
+<p align="left">
   <img src="./static/repo_od.png" alt="Pixel Snapper" width="320">
 </p>
 
