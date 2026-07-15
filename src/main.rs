@@ -182,11 +182,7 @@ fn main() -> Result<()> {
     process(&config)
 }
 
-fn process_image_common(
-    input_bytes: &[u8],
-    config: Option<Config>,
-    palette: Option<&[[u8; 3]]>,
-) -> Result<ProcessedImage> {
+fn process_image_common(input_bytes: &[u8], config: Option<Config>) -> Result<ProcessedImage> {
     let config = config.unwrap_or_default();
 
     let img = image::load_from_memory(input_bytes)?;
@@ -206,11 +202,8 @@ fn process_image_common(
 
     let rgba_img = img.to_rgba8();
 
-    let quantized_img = match palette {
-        Some(palette) => quantize_to_palette(&rgba_img, palette)?,
-        None => quantize_image(&rgba_img, &config)?,
-    };
-    let (profile_x, profile_y) = compute_profiles(&quantized_img)?;
+    let analysis_img = quantize_image(&rgba_img, &config)?;
+    let (profile_x, profile_y) = compute_profiles(&analysis_img)?;
 
     // Estimate step sizes
     let step_x_opt = estimate_step_size(&profile_x, &config);
@@ -233,7 +226,11 @@ fn process_image_common(
         &config,
     );
 
-    let output_img = resample(&quantized_img, &col_cuts, &row_cuts)?;
+    let snapped_img = resample(&analysis_img, &col_cuts, &row_cuts)?;
+    let output_img = match config.palette.as_deref() {
+        Some(palette) => apply_palette(&snapped_img, palette)?,
+        None => snapped_img,
+    };
 
     // Returns bytes for both implementations
     let mut output_bytes = Vec::new();
@@ -272,13 +269,13 @@ pub fn process_image(
     }
 
     config.pixel_size_override = pixel_size_override;
-    let palette = palette_hex
+    config.palette = palette_hex
         .as_deref()
         .map(parse_palette_hex)
         .transpose()
         .map_err(wasm_bindgen::JsValue::from)?;
 
-    process_image_common(input_bytes, Some(config), palette.as_deref())
+    process_image_common(input_bytes, Some(config))
         .map(|processed| processed.output_bytes)
         .map_err(wasm_bindgen::JsValue::from)
 }
@@ -546,7 +543,7 @@ fn process_file(input_path: &Path, output_path: &Path, config: &Config) -> Resul
         ))
     })?;
 
-    let processed = process_image_common(&img_bytes, Some(config.clone()), config.palette.as_deref())?;
+    let processed = process_image_common(&img_bytes, Some(config.clone()))?;
 
     std::fs::write(output_path, &processed.output_bytes).map_err(|e| {
         PixelSnapperError::ProcessingError(format!(
@@ -836,7 +833,7 @@ fn nearest_palette_color(rgb: [u8; 3], palette: &[[u8; 3]]) -> [u8; 3] {
     best_color
 }
 
-fn quantize_to_palette(img: &RgbaImage, palette: &[[u8; 3]]) -> Result<RgbaImage> {
+fn apply_palette(img: &RgbaImage, palette: &[[u8; 3]]) -> Result<RgbaImage> {
     if palette.is_empty() {
         return Err(PixelSnapperError::InvalidInput(
             "Palette must contain at least one RGB color".to_string(),
@@ -844,19 +841,22 @@ fn quantize_to_palette(img: &RgbaImage, palette: &[[u8; 3]]) -> Result<RgbaImage
     }
 
     let mut cache: HashMap<[u8; 3], [u8; 3]> = HashMap::new();
-    let mut new_img = RgbaImage::new(img.width(), img.height());
+    let mut recolored_img = RgbaImage::new(img.width(), img.height());
+
     for (x, y, pixel) in img.enumerate_pixels() {
         if pixel[3] == 0 {
-            new_img.put_pixel(x, y, *pixel);
+            recolored_img.put_pixel(x, y, *pixel);
             continue;
         }
+
         let key = [pixel[0], pixel[1], pixel[2]];
         let color = *cache
             .entry(key)
             .or_insert_with(|| nearest_palette_color(key, palette));
-        new_img.put_pixel(x, y, Rgba([color[0], color[1], color[2], pixel[3]]));
+        recolored_img.put_pixel(x, y, Rgba([color[0], color[1], color[2], pixel[3]]));
     }
-    Ok(new_img)
+
+    Ok(recolored_img)
 }
 
 fn compute_profiles(img: &RgbaImage) -> Result<(Vec<f64>, Vec<f64>)> {
@@ -1266,7 +1266,6 @@ fn resample(img: &RgbaImage, cols: &[usize], rows: &[usize]) -> Result<RgbaImage
             "Insufficient grid cuts for resampling".to_string(),
         ));
     }
-
     let out_w = (cols.len().max(1) - 1) as u32;
     let out_h = (rows.len().max(1) - 1) as u32;
     let mut final_img: RgbaImage = ImageBuffer::new(out_w, out_h);
