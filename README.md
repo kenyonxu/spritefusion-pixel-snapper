@@ -1,7 +1,7 @@
 # Sprite Fusion Pixel Snapper
 
 <p align="left">
-  <img src="./static/repo_od.png" alt="Pixel Snapper" width="320">
+  <img src="./static/repo_od.png" alt="Sprite Fusion Pixel Snapper is the repository of the day" width="320">
 </p>
 
 - **Online version**: https://spritefusion.com/pixel-snapper
@@ -37,38 +37,37 @@ A tool to snap pixels to a perfect grid. Designed to fix messy and inconsistent 
 
 <br>
 
-## Build from source
+## 💻 Use it with CLI
 
 Requires [Rust](https://www.rust-lang.org/) installed on your machine.
 
-### 💻 CLI
-
 ```bash
-git clone https://github.com/Hugo-Dz/spritefusion-pixel-snapper.git
-cd spritefusion-pixel-snapper
+cargo install spritefusion-pixel-snapper
 ```
 
+Process one image:
+
 ```bash
-cargo run input.png output.png
+spritefusion-pixel-snapper input.png output.png
 ```
 
 The command accepts an optional k-colors argument:
 
 ```bash
-cargo run input.png output.png 16
+spritefusion-pixel-snapper input.png output.png 16
 ```
 
 Use a directory as the input path to process a batch.
 
 ```bash
-cargo run sprites/batch_inputs sprites/batch_outputs 16
+spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs 16
 ```
 
 Override the auto-detected pixel size with `--pixel-size`:
 
 ```bash
-cargo run input.png output.png --pixel-size 8
-cargo run sprites/batch_inputs sprites/batch_outputs 16 --pixel-size 8
+spritefusion-pixel-snapper input.png output.png --pixel-size 8
+spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs 16 --pixel-size 8
 ```
 
 This is useful when the auto-detection doesn't match the expected grid size. The value must be between 1 and half the smallest image dimension.
@@ -76,11 +75,23 @@ This is useful when the auto-detection doesn't match the expected grid size. The
 Constrain the output to a fixed palette with `--palette`, passing comma-separated hex colors:
 
 ```bash
-cargo run input.png output.png --palette "0d2b45,203c56,544e68,8d697a,d08159,ffaa5e,ffd4a3,ffecd6"
-cargo run sprites/batch_inputs sprites/batch_outputs --palette "0d2b45,203c56,544e68,8d697a"
+spritefusion-pixel-snapper input.png output.png --palette "0d2b45,203c56,544e68,8d697a,d08159,ffaa5e,ffd4a3,ffecd6"
+spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs --palette "0d2b45,203c56,544e68,8d697a"
 ```
 
-### 🌐 Web (WASM)
+Run `spritefusion-pixel-snapper --help` to see every option.
+
+### Build from source
+
+```bash
+git clone https://github.com/Hugo-Dz/spritefusion-pixel-snapper.git
+cd spritefusion-pixel-snapper
+cargo build --release
+```
+
+The binary will be available at `target/release/spritefusion-pixel-snapper`.
+
+## 🌐 Use it on the Web (WASM)
 
 ```bash
 git clone https://github.com/Hugo-Dz/spritefusion-pixel-snapper.git

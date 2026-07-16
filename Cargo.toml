@@ -1,10 +1,20 @@
 [package]
 name = "spritefusion-pixel-snapper"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
+description = "Fix AI-generated pixel art by detecting and snapping it to its implicit grid."
+license = "MIT"
+repository = "https://github.com/Hugo-Dz/spritefusion-pixel-snapper"
+homepage = "https://www.spritefusion.com/pixel-snapper"
+readme = "README.md"
+keywords = ["pixel-art", "image-processing", "cli", "wasm", "gamedev"]
+categories = ["command-line-utilities", "multimedia::images"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "spritefusion-pixel-snapper"
 path = "src/main.rs"
 
 [dependencies]
