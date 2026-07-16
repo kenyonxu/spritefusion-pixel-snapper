@@ -37,44 +37,48 @@ A tool to snap pixels to a perfect grid. Designed to fix messy and inconsistent 
 
 <br>
 
-## 💻 Use it with CLI
+## 💻 CLI
 
-Requires [Rust](https://www.rust-lang.org/) installed on your machine.
+### Brew
+
+```bash
+brew install Hugo-Dz/tap/spritefusion-pixel-snapper
+```
+
+### Cargo
+
+Installation with Cargo requires [Rust](https://www.rust-lang.org/). Once installed, the CLI runs as a standalone native binary.
 
 ```bash
 cargo install spritefusion-pixel-snapper
 ```
 
-Process one image:
+### Usage
 
-```bash
-spritefusion-pixel-snapper input.png output.png
+```text
+spritefusion-pixel-snapper <INPUT> <OUTPUT> [COLOR_COUNT] [OPTIONS]
 ```
 
-The command accepts an optional k-colors argument:
+- `<INPUT>`: A PNG/JPEG image, or a directory for batch processing.
+- `<OUTPUT>`: An output PNG, or a different output directory for a batch.
+- `[COLOR_COUNT]`: Number of palette colors. Defaults to `16`.
+- `--pixel-size <PIXELS>`: Overrides the auto-detected pixel size. The value must be between 1 and half the smallest image dimension.
+- `--palette <HEX,...>`: Constrains the output to comma-separated six-digit hex colors.
+
+Examples:
 
 ```bash
+# Quantize the image to a 16-color palette
 spritefusion-pixel-snapper input.png output.png 16
-```
 
-Use a directory as the input path to process a batch.
-
-```bash
+# Process a directory as a batch
 spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs 16
-```
 
-Override the auto-detected pixel size with `--pixel-size`:
-
-```bash
+# Override the auto-detected pixel size
 spritefusion-pixel-snapper input.png output.png --pixel-size 8
 spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs 16 --pixel-size 8
-```
 
-This is useful when the auto-detection doesn't match the expected grid size. The value must be between 1 and half the smallest image dimension.
-
-Constrain the output to a fixed palette with `--palette`, passing comma-separated hex colors:
-
-```bash
+# Use a fixed color palette
 spritefusion-pixel-snapper input.png output.png --palette "0d2b45,203c56,544e68,8d697a,d08159,ffaa5e,ffd4a3,ffecd6"
 spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs --palette "0d2b45,203c56,544e68,8d697a"
 ```
