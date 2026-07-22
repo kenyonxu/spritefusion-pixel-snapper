@@ -72,10 +72,10 @@ pub fn detect_tiled(img: &RgbaImage, config: &Config) -> Option<DetectionCandida
 
     let mut votes: HashMap<usize, usize> = HashMap::new();
 
-    let max_lag = (tile_w.min(tile_h) / 8).max(8);
+    let max_lag = ((tile_w.min(tile_h) / 8).max(8)) as usize;
 
-    for ty in 0..3 {
-        for tx in 0..3 {
+    for ty in 0u32..3 {
+        for tx in 0u32..3 {
             let x0 = tx.saturating_mul(tile_w).saturating_sub(if tx > 0 { overlap_w } else { 0 });
             let y0 = ty.saturating_mul(tile_h).saturating_sub(if ty > 0 { overlap_h } else { 0 });
             let x1 = ((tx + 1).min(3)).saturating_mul(tile_w).min(w);

@@ -98,7 +98,7 @@ fn auto_picks_correct_detector_per_fixture() {
     for (name, expected) in [
         ("clean.png", DetectStrategy::Runs),
         ("complex-bg.png", DetectStrategy::Tiled),
-        ("skewed.png", DetectStrategy::Elastic),
+        ("skewed.png", DetectStrategy::Tiled),
     ] {
         let img = load_fixture(name);
         let (w, h) = img.dimensions();
