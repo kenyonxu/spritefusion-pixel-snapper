@@ -78,7 +78,7 @@ web/                        # Vite + React + TypeScript，独立前端项目
 
 ---
 
-## Phase 0 — 骨架重构（前置，不改行为）
+## Phase 0 — 骨架重构（前置，不改行为）✅
 
 **目标**：把 `lib.rs`（~1460 行）拆成上面结构，所有现有测试仍绿。为后续 Phase 铺路。
 
@@ -97,22 +97,30 @@ done | tee -a .phase0-baseline.log
 # 每步搬家后重跑 (b)，输出 hash 与基线一致才算「行为零变化」
 ```
 
-- [ ] 放 2–3 张代表性样本图到 `tests/fixtures/baseline/`（如 clean / aa-edges / skewed 各一张，可借 unfake.js `demo-pixel.png` 或自造）
-- [ ] 基线锁定：`cargo test` + `cargo build --target wasm32` + 样本图输出 sha256 录入 `.phase0-baseline.log`
-- [ ] 抽 `config.rs`：`Config` 结构 + `Default` impl，新增 `seed: u64` 字段（默认 42），现有 `k_seed` 标 deprecated 别名
-- [ ] 抽 `validate.rs`：`validate_image_dimensions` + pixel_size_override 校验
-- [ ] 抽 `palette.rs`：`parse_palette_hex` + `nearest_palette_color` + `apply_palette`
-- [ ] 抽 `profile.rs`：`compute_profiles` / `estimate_step_size` / `resolve_step_sizes`
-- [ ] 抽 `stabilize.rs`：`walk` / `stabilize_both_axes` / `stabilize_cuts` / `snap_uniform_cuts` / `sanitize_cuts`
-- [ ] 建 `detect/mod.rs` + `detect/elastic.rs`：把 walker 相关逻辑迁入，`DetectStrategy::Elastic` 作为当前唯一策略
-- [ ] 建 `resample/mod.rs` + `resample/majority.rs`：`ResampleMethod::Majority`
-- [ ] 建 `quantize/mod.rs` + `quantize/kmeans.rs`：现有 k-means
-- [ ] 抽 `cli.rs`（native）/ `wasm.rs`（wasm）：入口分离
-- [ ] `lib.rs` 只留 `process_image_common` 编排 + `pub use` 重导出
-- [ ] `cargo test` 全绿 + `cargo build --target wasm32-unknown-unknown` 通过
-- [ ] 更新 CLAUDE.md 的架构章节反映新结构
+- [x] 放样本图到 `tests/fixtures/baseline/`（借 unfake.js `demo-pixel.png` 作为 `ai-sprite.png`，1064×845）
+- [x] 基线锁定：`cargo test` + `cargo build --target wasm32` + 样本图输出 sha256 `802857…9f22` 录入 `.phase0-baseline.log`
+- [x] 抽 `config.rs`：`Config` + `Default`，`k_seed` 直接重命名为 `seed`（未做 deprecated 别名——`k_seed` 为 private 字段无外部依赖）
+- [x] 抽 `validate.rs`：`validate_image_dimensions`
+- [x] 抽 `palette.rs`：`parse_palette_hex` + `nearest_palette_color` + `apply_palette` + `MAX_PALETTE_COLORS`
+- [x] 抽 `profile.rs`：`compute_profiles` / `estimate_step_size` / `resolve_step_sizes`
+- [x] 抽 `stabilize.rs`：`walk` / `stabilize_both_axes` / `stabilize_cuts` / `snap_uniform_cuts` / `sanitize_cuts`
+- [ ] ~~建 `detect/mod.rs` + `detect/elastic.rs`~~ → **推迟到 Phase 1**：`walk` 留 `stabilize.rs`，剖面分析留 `profile.rs`；Phase 1 加 runs/tiled 时建 `detect/` 目录
+- [ ] ~~建 `resample/mod.rs` + `resample/majority.rs`~~ → **简化为单文件 `resample.rs`**；策略 enum 目录化留 Phase 1
+- [ ] ~~建 `quantize/mod.rs` + `quantize/kmeans.rs`~~ → **简化为单文件 `quantize.rs`**；策略 enum 目录化留 Phase 1
+- [x] 抽 `cli.rs`（native，整文件 `#![cfg(not(wasm32))]`）；`wasm.rs` **未抽**——`process_image` 留 `lib.rs` 避免 wasm_bindgen 导出可见性变动
+- [x] `lib.rs` 只留 `process_image_common` 编排 + `ProcessedImage` + `process_image`(wasm) + `pub use`
+- [x] `cargo test` 全绿（5 passed）+ `cargo build --target wasm32` 通过（0 warning）
+- [x] 更新 CLAUDE.md 架构章节（双目标 + 模块化管线映射表）
 
-**验收**：行为零变化，现有 5 个 cli_tests 通过，输出 byte 不变。
+**验收**：✅ 行为零变化，5 个 cli_tests 通过，样本图输出 sha256 `802857…9f22` 全程一致。
+
+### 实施记录
+
+- **分支**：`refactor/phase0-module-split`（commit `c9f45cf` → `8bf2bef` → `1dff622` → `2d01b3d`，未推）
+- **结果**：`lib.rs` 1460 → 139 行（-90%），拆为 11 模块（cli/config/error/palette/profile/quantize/resample/stabilize/validate + lib + main）
+- **基线纪律生效**：途中两次失误（删 stabilize 段时误删 resample 签名、error.rs 残留 unused `wasm_bindgen` import）都靠 sha256 锚定 + 编译验证即时发现修复
+- **可见性调整**：`process_image_common` 与 `ProcessedImage` 改 `pub(crate)` 供 `cli.rs` 访问；`Config` 内部字段改 `pub(crate)`（`k_colors`/`pixel_size_override` 保持 `pub` 供 wasm_bindgen）
+- **遗留**：`cli.rs` 553 行偏大（超 400 行 guideline），含入口+批量+测试，Phase 1 可顺手拆 `cli/args.rs` + `cli/batch.rs`
 
 ---
 
