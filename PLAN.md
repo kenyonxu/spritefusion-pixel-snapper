@@ -82,6 +82,14 @@ web/                        # Vite + React + TypeScript，独立前端项目
 
 **目标**：把 `lib.rs`（~1460 行）拆成上面结构，所有现有测试仍绿。为后续 Phase 铺路。
 
+**⚠️ 第一步：基线锁定** — 修改任意代码前先跑一次完整测试，锁定输出 hash 作为「行为零变化」的验收锚点：
+```bash
+cargo test 2>&1 | tee .phase0-baseline.log
+cargo build --target wasm32-unknown-unknown 2>&1 | tee -a .phase0-baseline.log
+# 后续每步搬家验证测试输出与基线一致
+```
+
+- [ ] 基线锁定：`cargo test` + `cargo build --target wasm32` 录 hash
 - [ ] 抽 `config.rs`：`Config` 结构 + `Default` impl，新增 `seed: u64` 字段（默认 42），现有 `k_seed` 标 deprecated 别名
 - [ ] 抽 `validate.rs`：`validate_image_dimensions` + pixel_size_override 校验
 - [ ] 抽 `palette.rs`：`parse_palette_hex` + `nearest_palette_color` + `apply_palette`
