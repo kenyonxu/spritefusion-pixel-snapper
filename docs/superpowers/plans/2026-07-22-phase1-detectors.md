@@ -143,12 +143,6 @@ mod error;
 At top of `src/config.rs` add:
 
 ```rust
-use crate::detect::{CutMethod, DetectStrategy};
-```
-
-Wait — `CutMethod` isn't needed in Config yet. Only `DetectStrategy`. Fix the import to:
-
-```rust
 use crate::detect::DetectStrategy;
 ```
 
@@ -1205,9 +1199,12 @@ git commit -m "feat(wasm): detect_strategy param + detect_candidates export"
 - [ ] **Step 1: Generate fixtures**
 
 Use any image editor or a quick script. Requirements:
-- `clean.png` — a sprite scaled up by an exact integer (e.g. 8×) with crisp edges, no AA. runs should return scale=8.
-- `complex-bg.png` — pixel art with a multicolor detailed background, integer-scaled. tiled should win.
-- `skewed.png` — pixel art with a slightly rotated / non-integer grid. elastic should win.
+|- `clean.png` — a sprite scaled up by an exact integer (e.g. 8×) with crisp edges, no AA. runs should return scale=8.
+  **配方**：取 8p×8p 的纯色网格图（每格一色），最近邻放大 8 倍至 64×64。无抗锯齿、无半透明。
+|- `complex-bg.png` — pixel art with a multicolor detailed background, integer-scaled. tiled should win.
+  **配方**：取 8×8 网格叠加 4 种图案层，最近邻放大 4 倍至 32×32，再用任意自然背景图（树叶/草地 JPEG）填充非物体区域。runs 因 run-length 噪声回退 None，tiled 自适应选中。
+|- `skewed.png` — pixel art with a slightly rotated / non-integer grid. elastic should win.
+  **配方**：取 16×16 的格子精灵图（1px 黑线描边），双线性缩放至 2.5 倍（40×40），再加 2‑3° 旋转后裁切回 40×40。runs 和 tiled 因非整数网格 → None，elastic 因弹性 walker 正确检出步长 2.5。
 
 Quick generator (save as `/tmp/gen_fixtures.py`, run with python + Pillow if available, else hand-create):
 ```bash
@@ -1269,6 +1266,8 @@ git commit -m "test(detect): add detector fixtures + integration tests"
 - Delete: `src/cli.rs`
 - Modify: `src/lib.rs` (`mod cli;` unchanged — now a directory module)
 - Modify: `CLAUDE.md`
+
+**为何在此处理**：Phase 1 为 cli.rs 新增 `--detect` / `--json` 参数，文件将逼近 R4 的 400 行上限。趁改参数面时拆解，避免 Phase 2+ 拖出更大的学习债务。与核心算法逻辑完全独立，拆错不影响 sha256 行为锚点。
 
 - [ ] **Step 1: Split `src/cli.rs` into `src/cli/mod.rs`**
 
