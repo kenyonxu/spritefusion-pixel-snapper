@@ -35,6 +35,7 @@ The shared pipeline entry [`process_image_common`](src/lib.rs) (pub(crate)) is u
 | Errors | [error.rs](src/error.rs) | `PixelSnapperError` + `Result`; `JsValue` conv under wasm |
 | Quantize (k-means++) | [quantize.rs](src/quantize.rs) | analysis-only color reduction |
 | Profiles + step estimate | [profile.rs](src/profile.rs) | `compute_profiles` / `estimate_step_size` / `resolve_step_sizes` |
+| Detect (runs/tiled/elastic) | [detect/mod.rs](src/detect/mod.rs) | candidate-returning detectors + Auto select |
 | Stabilize (walker + cuts) | [stabilize.rs](src/stabilize.rs) | `walk`, `stabilize_both_axes`, `stabilize_cuts`, `snap_uniform_cuts`, `sanitize_cuts` |
 | Resample (majority vote) | [resample.rs](src/resample.rs) | grid-cell majority, deterministic RGBA tie-break |
 | Palette | [palette.rs](src/palette.rs) | `parse_palette_hex` / `apply_palette` / `nearest_palette_color` + `MAX_PALETTE_COLORS` |
@@ -50,16 +51,14 @@ The crate is `cdylib` + `rlib` ([Cargo.toml](Cargo.toml)): `cdylib` for the WASM
 
 1. **`quantize_image`** — k-means++ (seeded `ChaCha8Rng`, `k_seed = 42`) reduces the image to `k_colors` centroids. Result is used *only as analysis input* for grid detection; final colors come from a separate path. Note: the TODO comment flags `kmeans_colors` crate as a faster alternative.
 2. **`compute_profiles`** — projects a `[-1, 0, 1]` gradient kernel across rows and columns → two 1-D edge-strength profiles. Transparent pixels contribute 0.
-3. **`estimate_step_size`** — finds peaks above `peak_threshold_multiplier * max`, dedups with `peak_distance_filter`, takes the **median** peak spacing. Returns `Option<f64>` — `None` means detection failed.
-4. **`resolve_step_sizes`** — reconciles X/Y. If the ratio exceeds `max_step_ratio` (currently 1.8, lowered from 3.0 to catch skew), it snaps both to the smaller step; otherwise averages them. This is the primary anti-skew mechanism.
-5. **`walk`** — an elastic walker that advances by `step_size` and snaps each cut to the strongest profile peak within a `walker_search_window_ratio` window, but only if the peak exceeds `mean * walker_strength_threshold`. A comment notes uniform-grid was tried and rejected as worse.
-6. **`stabilize_both_axes` → `stabilize_cuts` → `snap_uniform_cuts`** — two-pass stabilization that cross-validates one axis against the other and falls back to a uniform grid (`fallback_target_segments`) when detection is incoherent or below `min_cuts_per_axis`.
-7. **`resample`** — for each grid cell, picks the most common pixel by **majority vote** (deterministic tie-break by RGBA ordering).
-8. **`apply_palette`** (optional) — snaps every pixel to its nearest palette color (squared-Euclidean), cached per unique color.
+3. **`detect`** — runs `runs` (GCD + posterize), `tiled` (Sobel + autocorrelation), and/or `elastic` (gradient walker) per `DetectStrategy`. Returns ranked `DetectionCandidate`s (detector, scale, step, confidence, cut_method). Auto runs all three; selection priority Runs>Tiled>Elastic then confidence.
+4. **`cut`** — branches on the selected candidate's `cut_method`: `Uniform` → `snap_uniform_cuts` (integer grid); `Walker` → `walk` + `stabilize_both_axes` (skew/continuous).
+5. **`resample`** — for each grid cell, picks the most common pixel by **majority vote** (deterministic tie-break by RGBA ordering).
+6. **`apply_palette`** (optional) — snaps every pixel to its nearest palette color (squared-Euclidean), cached per unique color.
 
 ## Tuning knobs
 
-`Config` (default impl in [src/config.rs](src/config.rs)) holds ~11 parameters that control detection stability. The public CLI only exposes `k_colors`, `pixel_size_override`, and `palette`; everything else is internal. When debugging "wrong grid detected on this image," the usual suspects are `max_step_ratio` (skew), `walker_search_window_ratio` / `walker_strength_threshold` (peak sensitivity), and `fallback_target_segments` (last-resort grid density).
+`Config` (default impl in [src/config.rs](src/config.rs)) holds ~11 parameters that control detection stability. The public CLI exposes `k_colors`, `pixel_size_override`, `palette`, `--detect` (strategy), and `--json` (candidate output); everything else is internal. When debugging "wrong grid detected on this image," the usual suspects are `max_step_ratio` (skew), `walker_search_window_ratio` / `walker_strength_threshold` (peak sensitivity), and `fallback_target_segments` (last-resort grid density).
 
 ## Constraints enforced in code
 
