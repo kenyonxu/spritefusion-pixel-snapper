@@ -4,6 +4,7 @@ use crate::Config;
 use image::RgbaImage;
 
 pub mod elastic;
+pub mod runs;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetectStrategy {
@@ -40,6 +41,12 @@ pub fn detect(
     strategy: DetectStrategy,
 ) -> Vec<DetectionCandidate> {
     let mut out = Vec::new();
+    let run_runs = matches!(strategy, DetectStrategy::Auto | DetectStrategy::Runs);
+    if run_runs {
+        if let Some(c) = runs::detect_runs(img, config) {
+            out.push(c);
+        }
+    }
     let run_elastic = matches!(strategy, DetectStrategy::Auto | DetectStrategy::Elastic);
     if run_elastic {
         if let Some(c) = elastic::detect_elastic(img, profile_x, profile_y, width, height, config) {
