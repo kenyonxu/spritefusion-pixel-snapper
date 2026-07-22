@@ -1,0 +1,37 @@
+{
+  "$schema": "../pipeline-config.schema.json",
+  "name": "AI Character Cleanup",
+  "description": "清洗 AI 生成的角色 sprite：自动检测网格 + 中值去抗锯齿 + Oklab 16色 + 去背景 + 裁边。独立游戏开发者最常用场景。",
+  "version": 1,
+  "seed": 42,
+  "detect": {
+    "strategy": "auto"
+  },
+  "resample": {
+    "method": "median",
+    "sample_window": 3
+  },
+  "quantize": {
+    "enabled": true,
+    "k_colors": 16,
+    "colorspace": "oklab",
+    "preset_palette": "none"
+  },
+  "postprocess": {
+    "background": {
+      "remove": true,
+      "scope": "outer",
+      "tolerance": 64,
+      "fill_holes": true,
+      "remove_floating_pixels": 8
+    },
+    "morphology": {
+      "enabled": true
+    }
+  },
+  "output": {
+    "scale": 1,
+    "auto_trim": true,
+    "embed_recipe": true
+  }
+}

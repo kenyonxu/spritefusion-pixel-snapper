@@ -58,6 +58,22 @@ src/
   main.rs             # 不变，7 行 shim
 ```
 
+### 前端工程（Phase 6 起引入，与 src/ 并列）
+
+```
+web/                        # Vite + React + TypeScript，独立前端项目
+  src/
+    App.tsx
+    store/                  # zustand + persist：会话(images[]) / 历史 / 用户预设
+    components/             # shadcn/ui + 自定义：滑块对比、放大镜、调色板编辑器、候选网格选择器
+    forms/                  # RJSF 绑 PipelineConfig schema 生成参数表单 + shadcn widget 映射
+    worker/                 # Web Worker 封装 WASM process_image（非阻塞，U12.5）
+    recipe/                 # PNG zTXt 读写（recipe 嵌入/回填，U11.2）
+    wasm-loader.ts          # vite-plugin-wasm 加载 pkg/
+  schema/                   # 软链或复制 ../schema/ 供 RJSF 引用
+  package.json
+```
+
 **重构顺序**：先做零行为的模块拆分（把现有代码搬到上面对应文件，编译通过 + 测试绿），再开始 Phase 1。这一步不算在任何 Phase 里，是"Phase 0：骨架重构"。
 
 ---
@@ -235,6 +251,74 @@ src/
 
 ---
 
+## Phase 6 — 产品功能层（Web + 跨形态共享）
+
+**目标**：在算法 Phase 之上构建完整产品，覆盖 USER_STORIES 标「产品」的 story（U9 预设 / U10 会话 / U4.6 调色板编辑器 / U8 导出 / U11.2 recipe）。
+
+**前端栈**：React + Vite + shadcn/ui + RJSF（决策见 [USER_STORIES.md](USER_STORIES.md) 待决问题）。
+**核心契约**：所有功能围绕 `PipelineConfig`（见 [docs/CONFIG.md](docs/CONFIG.md)）——RJSF 吃 schema 生成表单，预设/recipe/CLI 共用同一份 JSON。
+
+### 任务
+
+**6A 前端骨架**
+- [ ] `web/` Vite + React + TS 初始化 + shadcn/ui 接入
+- [ ] `vite-plugin-wasm` 加载 `pkg/spritefusion_pixel_snapper.js`，异步 loading 态
+- [ ] `worker/` Web Worker 封装 `process_image`（postMessage 传 bytes+config，回传 result）—— 非阻塞（U12.5）
+- [ ] `forms/` RJSF 绑 `pipeline-config.schema.json` + shadcn widget 映射（调色板→色板选择器、dither→Select、strategy→RadioGroup）
+- [ ] 替换根目录 `index.html` 试用页（迁移为 `web/` 起点）
+
+**6B 预设系统（→ U9）**
+- [ ] 内置预设（随包读 `schema/presets/*.json`）+ 用户预设（zustand persist → localStorage）
+- [ ] 预设列表 UI（shadcn Sidebar）：命名保存 / 加载 / 删除
+- [ ] 导入/导出 `.json`（U9.3）
+- [ ] CLI `--preset <name|file>` + `--config <file.json>`（Rust serde 读同一 schema）—— CLI/Web 互通（U9.4）
+- [ ] 内置场景预设：「AI角色清洗」「Tile去背景」「复古NES风」等（U9.5）
+
+**6C 会话与多图（→ U10）**
+- [ ] zustand store：`images[]`（每张含 inputBytes + config + resultUrl + history[]）
+- [ ] 多图列表 / 切换 / 删除 / 清空（U10.1/10.3）
+- [ ] 处理历史：每张图历次 config+result，点击回退（U10.2）
+- [ ] 批量：当前 config 应用到全部 + ZIP 导出（jszip）（U8.3）
+
+**6D 调色板编辑器（→ U4.6/4.7）**
+- [ ] 结果调色板可视化（色块网格）
+- [ ] 点击色块 → 弹出色板选择器替换 → 写入 `custom_palette` 重跑 quantize
+- [ ] 导出 `.hex` / `.gpl` / `.png` 色板文件（U4.7）
+
+**6E 对比与放大镜（→ U7.1/7.2）**
+- [ ] 滑块对比（react-compare-slider 或自写）
+- [ ] 放大镜：hover 跟随、pixelated 渲染、原图/结果同步位置
+
+**6F 导出（→ U8）**
+- [ ] `output.scale` 下拉（1/2/4/8/…/32，最近邻）
+- [ ] `output.auto_trim` / `output.force_size` 开关
+- [ ] 下载 PNG / 复制到剪贴板 / ZIP 打包
+
+**6G Recipe 追溯闭环（→ U11.2）**
+- [ ] Rust core：PNG `zTXt` 读写（嵌入 minified config，键 `pixel-snapper-recipe`）
+- [ ] Web：拖入 PNG → 读 recipe → 回填表单
+- [ ] CLI `--dump-recipe <png>` 输出 JSON
+
+**6H 跨形态共享**
+- [ ] Rust `Config` ↔ `PipelineConfig` JSON serde 双向（Phase 0 重构对齐 snake_case）
+- [ ] schema 版本迁移器 `migrate(config, from_v, to_v)`（breaking 时）
+- [ ] CI：所有 `schema/presets/*.json` 通过 schema 验证
+
+### 验收
+- USER_STORIES 所有 Web story 可点
+- 预设 CLI/Web 双向互通（Web 导出 → CLI `--config` 跑出同结果）
+- recipe 闭环：处理 → 存 PNG → 拖回 → 表单回填 → 重跑复现
+- Web Worker 处理时 UI 不卡（大图 >2s 仍可操作）
+- WASM + 前端 bundle 监控（目标 gz < 250KB，不含 EM/vectorize feature）
+
+### 风险
+- RJSF 默认表单丑，custom widget 映射工作量大 → 按 story 优先级逐步映射，MVP 先用默认
+- WASM 在 Vite 需 `vite-plugin-wasm` + 顶层 await，异步加载要有 loading 态
+- bundle 体积：React + shadcn + RJSF 可能 200KB+ gz → code split（调色板编辑器/放大镜 lazy load）
+- 预设 schema 演进：靠 version + 迁移器（C 已定）
+
+---
+
 ## 跨 Phase：测试与质量
 
 - [ ] `tests/fixtures/` 建立样本库：clean / complex-bg / skewed / aa-edges / gradient / transparent-bg / noisy
@@ -255,8 +339,9 @@ src/
 | **M4** | Phase 4 后处理 | 游戏引擎可用性 | 低 |
 | **M5** | Phase 3 dithering | 复古风 | 低 |
 | **M6** | Phase 5 矢量化 | 新能力 | 中 |
+| **MW** | Phase 6 Web 产品（M1 起持续并行） | 双形态落地、产品功能 | 中（前端工程量大） |
 
-M1 → M2 → M3 → M4 是主线；M5/M6 可插队或跳过。
+M0 → M1 → M2 → M3 → M4 是算法主线；**MW（Phase 6）从 M1 起并行推进**，每个算法 milestone 落地后同步做对应 Web story（如 M1 完成后做候选网格选择器 UI、M2 完成后做调色板/预设 UI）。M5/M6 可插队或跳过。
 
 ## License 合规清单
 

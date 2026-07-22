@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spritefusion.com/pixel-snapper/pipeline-config.v1.json",
+  "title": "PipelineConfig",
+  "description": "Pixel Snapper 处理管线配置。CLI/Web/预设文件/配方追溯共用的单一真相源。所有未提供字段使用默认值。",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema 主版本。breaking change 时递增（见 docs/CONFIG.md 版本策略）。"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 42,
+      "description": "全局确定性种子。所有 RNG（k-means 等）走此 seed。同图同 seed → byte 一致输出。"
+    },
+    "detect": {
+      "$ref": "#/$defs/DetectConfig",
+      "default": {}
+    },
+    "resample": {
+      "$ref": "#/$defs/ResampleConfig",
+      "default": {}
+    },
+    "quantize": {
+      "$ref": "#/$defs/QuantizeConfig",
+      "default": {}
+    },
+    "postprocess": {
+      "$ref": "#/$defs/PostprocessConfig",
+      "default": {}
+    },
+    "output": {
+      "$ref": "#/$defs/OutputConfig",
+      "default": {}
+    }
+  },
+  "$defs": {
+    "DetectConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "enum": ["auto", "runs", "tiled", "elastic"],
+          "default": "auto",
+          "description": "网格检测策略。auto=自动选最优；runs=GCD适合干净图；tiled=Sobel+自相关适合复杂背景；elastic=弹性walker抗skew（→ PLAN P1）。"
+        },
+        "pixel_size_override": {
+          "type": ["number", "null"],
+          "minimum": 1,
+          "default": null,
+          "description": "手动覆盖检测到的像素步长。范围 [1, min(w,h)/2]。null=自动检测。"
+        },
+        "skew_tolerance": {
+          "type": ["number", "null"],
+          "default": 1.8,
+          "description": "elastic 模式的 max_step_ratio。两轴步长比超此值触发 skew 纠正。runs/tiled 命中整数倍时忽略。"
+        },
+        "runs_min_runs": { "type": "integer", "minimum": 1, "default": 10, "description": "runs detector 要求的最小 run 总数，不足则判失败。" },
+        "tiled_stddev_threshold": { "type": "number", "default": 5, "description": "tiled detector 过滤平坦区块的 stddev 下限。" },
+        "tiled_peak_ratio": { "type": "number", "default": 0.6, "description": "tiled 自相关峰值阈值 = peak_ratio × gmax。" }
+      }
+    },
+    "ResampleConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": ["majority", "median", "dominant", "mode", "qvote", "content_adaptive"],
+          "default": "majority",
+          "description": "重采样策略。majority=众数(默认,确定);median=中值兼去AA;dominant/mode/qvote=抗噪;content_adaptive=Öztireli EM感知最优(feature gate)（→ PLAN P2）。"
+        },
+        "sample_window": { "type": "integer", "minimum": 1, "maximum": 9, "default": 3, "description": "median 邻域窗口大小。" },
+        "dominant_threshold": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.15, "description": "dominant 主色占比阈值，低于此值 fallback 到 mean。" }
+      }
+    },
+    "QuantizeConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true, "description": "是否做颜色量化。false=跳过，保留 resample 后的原始颜色。" },
+        "k_colors": { "type": "integer", "minimum": 1, "maximum": 256, "default": 16, "description": "调色板颜色数。" },
+        "colorspace": {
+          "enum": ["rgb", "oklab"],
+          "default": "rgb",
+          "description": "k-means 距离空间。rgb=现状行为(向后兼容);oklab=感知均匀(→ PLAN P3)。"
+        },
+        "max_kmeans_iterations": { "type": "integer", "minimum": 1, "default": 15 },
+        "dither": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "enum": ["none", "floyd_steinberg", "bayer2", "bayer4", "bayer8", "ordered"],
+              "default": "none"
+            },
+            "strength": { "type": "number", "minimum": 0, "maximum": 2, "default": 1.0 }
+          },
+          "default": {}
+        },
+        "preset_palette": {
+          "enum": ["none", "nes", "gameboy", "sgb", "snes", "pc9801", "msx1", "pico8", "sweetie16", "endesga32"],
+          "default": "none",
+          "description": "内置主机/经典调色板。优先级：custom_palette > preset_palette > k_means。"
+        },
+        "custom_palette": {
+          "type": ["array", "null"],
+          "items": { "type": "string", "pattern": "^[0-9a-fA-F]{6}$" },
+          "default": null,
+          "description": "自定义调色板，6位hex字符串数组。最高优先级。"
+        }
+      }
+    },
+    "PostprocessConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "remove": { "type": "boolean", "default": false },
+            "scope": { "enum": ["outer", "selected", "all"], "default": "outer", "description": "outer=边框flood;selected=指定角点;all=flood后全图扫同色。" },
+            "tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "default": 64 },
+            "fill_holes": { "type": "boolean", "default": false, "description": "填充内部孔洞（如甜甜圈中心）。" },
+            "remove_floating_pixels": { "type": "integer", "minimum": 0, "default": 0, "description": "移除小于此像素数的孤立连通分量。0=禁用。" }
+          },
+          "default": {}
+        },
+        "outline": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "style": { "enum": ["rounded", "sharp"], "default": "rounded", "description": "rounded=8向;sharp=4向。" },
+            "color": { "type": "string", "pattern": "^[0-9a-fA-F]{6}$", "default": "000000" }
+          },
+          "default": {}
+        },
+        "morphology": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false, "description": "2×2 open→close：填小孔+去单像素speckle。" }
+          },
+          "default": {}
+        },
+        "alpha": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "binarize": { "type": "boolean", "default": false },
+            "threshold": {
+              "oneOf": [
+                { "type": "integer", "minimum": 1, "maximum": 255 },
+                { "const": "auto" }
+              ],
+              "default": 128,
+              "description": "alpha 二值化阈值。整数 1-255 或 'auto'(Otsu 自适应)。"
+            }
+          },
+          "default": {}
+        }
+      },
+      "default": {}
+    },
+    "OutputConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scale": { "type": "integer", "enum": [1, 2, 3, 4, 6, 8, 16, 32], "default": 1, "description": "导出整数倍放大（最近邻保像素感）。" },
+        "auto_trim": { "type": "boolean", "default": false, "description": "裁掉透明边距。" },
+        "force_size": {
+          "type": ["object", "null"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          },
+          "default": null,
+          "description": "强制 resize 到精确尺寸。null=禁用。"
+        },
+        "embed_recipe": {
+          "type": "boolean",
+          "default": true,
+          "description": "把 PipelineConfig 以 zTXt chunk 嵌入输出 PNG，键 'pixel-snapper-recipe'。用于配方追溯（U11.2）。"
+        }
+      },
+      "default": {}
+    }
+  }
+}
