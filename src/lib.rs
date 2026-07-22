@@ -21,6 +21,7 @@ pub use error::{PixelSnapperError, Result};
 pub use cli::run_cli;
 
 use image::GenericImageView;
+use detect::{detect, select_best, CutMethod, DetectionCandidate, DetectStrategy};
 use palette::{apply_palette, parse_palette_hex};
 use profile::{compute_profiles, estimate_step_size, resolve_step_sizes};
 use quantize::quantize_image;
@@ -64,13 +65,37 @@ pub(crate) fn process_image_common(input_bytes: &[u8], config: Option<Config>) -
     let analysis_img = quantize_image(&rgba_img, &config)?;
     let (profile_x, profile_y) = compute_profiles(&analysis_img)?;
 
-    // Estimate step sizes
-    let step_x_opt = estimate_step_size(&profile_x, &config);
-    let step_y_opt = estimate_step_size(&profile_y, &config);
+    let candidates = detect(
+        &rgba_img,
+        &profile_x,
+        &profile_y,
+        width,
+        height,
+        &config,
+        config.detect_strategy,
+    );
+    let chosen = select_best(&candidates, config.detect_strategy)
+        .map(|(best, _)| best.clone())
+        .unwrap_or_else(|| {
+            // fallback: synthesize elastic-style candidate so existing fallback path runs
+            let (sx, _sy) = resolve_step_sizes(
+                estimate_step_size(&profile_x, &config),
+                estimate_step_size(&profile_y, &config),
+                width,
+                height,
+                &config,
+            );
+            DetectionCandidate {
+                detector: DetectStrategy::Elastic,
+                scale: None,
+                step: sx,
+                confidence: 0.0,
+                cut_method: CutMethod::Walker,
+            }
+        });
 
-    // Resolve step sizes. Some instabilities so use sibling axis if one fails, or fallback if both fail
-    let (step_x, step_y) = resolve_step_sizes(step_x_opt, step_y_opt, width, height, &config);
-
+    let step_x = chosen.step;
+    let step_y = chosen.step;
     let raw_col_cuts = walk(&profile_x, step_x, width as usize, &config)?;
     let raw_row_cuts = walk(&profile_y, step_y, height as usize, &config)?;
 

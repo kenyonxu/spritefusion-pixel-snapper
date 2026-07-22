@@ -3,6 +3,8 @@
 use crate::Config;
 use image::RgbaImage;
 
+pub mod elastic;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetectStrategy {
     Auto,
@@ -29,15 +31,22 @@ pub struct DetectionCandidate {
 /// Run detectors per `strategy`, return all candidates (Auto = all three).
 /// Implemented across Tasks 2/3/4; stub returns empty for now.
 pub fn detect(
-    _img: &RgbaImage,
-    _profile_x: &[f64],
-    _profile_y: &[f64],
-    _width: u32,
-    _height: u32,
-    _config: &Config,
-    _strategy: DetectStrategy,
+    img: &RgbaImage,
+    profile_x: &[f64],
+    profile_y: &[f64],
+    width: u32,
+    height: u32,
+    config: &Config,
+    strategy: DetectStrategy,
 ) -> Vec<DetectionCandidate> {
-    Vec::new()
+    let mut out = Vec::new();
+    let run_elastic = matches!(strategy, DetectStrategy::Auto | DetectStrategy::Elastic);
+    if run_elastic {
+        if let Some(c) = elastic::detect_elastic(img, profile_x, profile_y, width, height, config) {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Select the best candidate: Auto sorts by priority Runs>Tiled>Elastic then
