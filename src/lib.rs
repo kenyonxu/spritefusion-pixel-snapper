@@ -26,7 +26,7 @@ use palette::{apply_palette, parse_palette_hex};
 use profile::{compute_profiles, estimate_step_size, resolve_step_sizes};
 use quantize::quantize_image;
 use resample::resample;
-use stabilize::{walk, stabilize_both_axes};
+use stabilize::{snap_uniform_cuts, walk, stabilize_both_axes};
 use validate::validate_image_dimensions;
 
 #[cfg(target_arch = "wasm32")]
@@ -94,21 +94,41 @@ pub(crate) fn process_image_common(input_bytes: &[u8], config: Option<Config>) -
             }
         });
 
-    let step_x = chosen.step;
-    let step_y = chosen.step;
-    let raw_col_cuts = walk(&profile_x, step_x, width as usize, &config)?;
-    let raw_row_cuts = walk(&profile_y, step_y, height as usize, &config)?;
-
-    // Two-pass stabilization: first pass with raw cuts, then cross-validate
-    let (col_cuts, row_cuts) = stabilize_both_axes(
-        &profile_x,
-        &profile_y,
-        raw_col_cuts,
-        raw_row_cuts,
-        width as usize,
-        height as usize,
-        &config,
-    );
+    let (col_cuts, row_cuts) = match chosen.cut_method {
+        CutMethod::Uniform => {
+            let scale = chosen.scale.expect("Uniform candidate must have scale");
+            let target_step = scale as f64;
+            let col = snap_uniform_cuts(
+                &profile_x,
+                width as usize,
+                target_step,
+                &config,
+                config.min_cuts_per_axis,
+            );
+            let row = snap_uniform_cuts(
+                &profile_y,
+                height as usize,
+                target_step,
+                &config,
+                config.min_cuts_per_axis,
+            );
+            (col, row)
+        }
+        CutMethod::Walker => {
+            let step = chosen.step;
+            let raw_col_cuts = walk(&profile_x, step, width as usize, &config)?;
+            let raw_row_cuts = walk(&profile_y, step, height as usize, &config)?;
+            stabilize_both_axes(
+                &profile_x,
+                &profile_y,
+                raw_col_cuts,
+                raw_row_cuts,
+                width as usize,
+                height as usize,
+                &config,
+            )
+        }
+    };
 
     let snapped_img = resample(&analysis_img, &col_cuts, &row_cuts)?;
     let output_img = match config.palette.as_deref() {
@@ -125,7 +145,7 @@ pub(crate) fn process_image_common(input_bytes: &[u8], config: Option<Config>) -
 
     Ok(ProcessedImage {
         output_bytes,
-        pixel_size: step_x,
+        pixel_size: chosen.step,
         pixel_size_override: config.pixel_size_override.is_some(),
         output_width: (col_cuts.len() - 1) as u32,
         output_height: (row_cuts.len() - 1) as u32,
