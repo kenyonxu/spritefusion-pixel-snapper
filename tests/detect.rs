@@ -47,3 +47,28 @@ fn runs_returns_none_on_tiny_noise() {
     // pure noise has no consistent run gcd; accept either None or low-confidence
     assert!(cands.is_empty() || cands[0].confidence < 0.9);
 }
+#[test]
+#[ignore = "fixture added in Task 10"]
+fn tiled_detects_complex_fixture() {
+    let img = load_fixture("complex-bg.png");
+    let (w, h) = img.dimensions();
+    let config = spritefusion_pixel_snapper::Config::default();
+    let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Tiled);
+    assert!(cands
+        .iter()
+        .any(|c| c.detector == DetectStrategy::Tiled && c.scale.unwrap_or(0) >= 2));
+}
+
+#[test]
+fn tiled_returns_none_on_flat_image() {
+    let mut img = image::RgbaImage::new(64, 64);
+    for y in 0..64 {
+        for x in 0..64 {
+            img.put_pixel(x, y, image::Rgba([128, 128, 128, 255]));
+        }
+    }
+    let config = spritefusion_pixel_snapper::Config::default();
+    let (w, h) = img.dimensions();
+    let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Tiled);
+    assert!(cands.is_empty());
+}

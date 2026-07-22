@@ -5,6 +5,7 @@ use image::RgbaImage;
 
 pub mod elastic;
 pub mod runs;
+pub mod tiled;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetectStrategy {
@@ -44,6 +45,12 @@ pub fn detect(
     let run_runs = matches!(strategy, DetectStrategy::Auto | DetectStrategy::Runs);
     if run_runs {
         if let Some(c) = runs::detect_runs(img, config) {
+            out.push(c);
+        }
+    }
+    let run_tiled = matches!(strategy, DetectStrategy::Auto | DetectStrategy::Tiled);
+    if run_tiled {
+        if let Some(c) = tiled::detect_tiled(img, config) {
             out.push(c);
         }
     }
