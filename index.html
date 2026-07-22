@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pixel Snapper · 本地试用</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0; padding: 24px; background: #0d1117; color: #e6edf3;
+      max-width: 1100px;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: #8b949e; font-size: 13px; margin-bottom: 20px; }
+    .panel {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 16px; margin-bottom: 16px;
+    }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .row:last-child { margin-bottom: 0; }
+    label { font-size: 13px; color: #c9d1d9; min-width: 90px; }
+    input[type="number"], input[type="text"] {
+      background: #0d1117; border: 1px solid #30363d; color: #e6edf3;
+      border-radius: 6px; padding: 6px 10px; font-size: 13px; font-family: inherit;
+    }
+    input[type="text"] { width: 360px; }
+    input[type="file"] { display: none; }
+    .btn {
+      background: #238636; color: white; border: none; border-radius: 6px;
+      padding: 8px 16px; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    .btn:hover { background: #2ea043; }
+    .btn.secondary { background: #21262d; border: 1px solid #30363d; }
+    .btn.secondary:hover { background: #30363d; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hint { font-size: 11px; color: #6e7681; margin-left: 4px; }
+    .status {
+      font-size: 13px; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px;
+      display: none;
+    }
+    .status.show { display: block; }
+    .status.info { background: #1f6feb33; border: 1px solid #1f6feb; }
+    .status.error { background: #da363433; border: 1px solid #da3634; }
+    .status.success { background: #23863633; border: 1px solid #238636; }
+    .meta { font-size: 12px; color: #8b949e; margin-top: 8px; font-family: ui-monospace, monospace; }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .compare .col h3 { font-size: 13px; margin: 0 0 8px; color: #8b949e; }
+    .compare img {
+      width: 100%; image-rendering: pixelated; image-rendering: crisp-edges;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+      display: block;
+    }
+    .empty { color: #6e7681; font-size: 13px; padding: 40px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Sprite Fusion Pixel Snapper</h1>
+  <div class="sub">本地 WASM 试用 · 处理完全在你的浏览器里进行，不上传任何服务器</div>
+
+  <div class="panel">
+    <div class="row">
+      <label>选择图片</label>
+      <input type="file" id="file" accept="image/png,image/jpeg" />
+      <button class="btn secondary" onclick="document.getElementById('file').click()">选择 PNG / JPG</button>
+      <span class="hint" id="fileName">未选择</span>
+    </div>
+    <div class="row">
+      <label>颜色数</label>
+      <input type="number" id="kColors" value="16" min="1" max="256" />
+      <span class="hint">k-means 调色板大小，默认 16</span>
+    </div>
+    <div class="row">
+      <label>像素尺寸</label>
+      <input type="number" id="pixelSize" value="" placeholder="留空=自动检测" min="1" />
+      <span class="hint">覆盖自动检测的像素步长（1 ~ min(w,h)/2）</span>
+    </div>
+    <div class="row">
+      <label>固定调色板</label>
+      <input type="text" id="palette" placeholder="留空=自动，例：0d2b45,ffecd6,ff4d6d" />
+      <span class="hint">逗号分隔 6 位 hex</span>
+    </div>
+    <div class="row">
+      <button class="btn" id="run" disabled>处理</button>
+      <button class="btn secondary" id="download" disabled>下载结果</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="panel">
+    <div class="compare">
+      <div class="col">
+        <h3>原图</h3>
+        <div class="empty" id="origEmpty">选择图片后显示</div>
+        <img id="orig" style="display:none" />
+        <div class="meta" id="inputMeta"></div>
+      </div>
+      <div class="col">
+        <h3>结果</h3>
+        <div class="empty" id="outEmpty">点击「处理」后显示</div>
+        <img id="out" style="display:none" />
+        <div class="meta" id="meta"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import init, { process_image } from "./pkg/spritefusion_pixel_snapper.js";
+
+    const $ = (id) => document.getElementById(id);
+    let inputBytes = null;
+    let outputUrl = null;
+
+    function setStatus(type, msg) {
+      const el = $("status");
+      el.className = "status show " + type;
+      el.textContent = msg;
+    }
+
+    // 解码图 → 统计不透明像素的去重颜色数。用 canvas 解码，可能因预乘 alpha 有极小偏差，数量级够用。
+    async function analyzeInput(bytes, type) {
+      const bmp = await createImageBitmap(new Blob([bytes], { type }));
+      const w = bmp.width, h = bmp.height;
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bmp, 0, 0);
+      bmp.close();
+      const { data } = ctx.getImageData(0, 0, w, h);
+      const set = new Set();
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue; // 跳过透明
+        set.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
+      }
+      return { colors: set.size, w, h };
+    }
+
+    function suggestK(n) {
+      if (n <= 8) return `已经很干净（${n} 色），k 试 8`;
+      if (n <= 32) return `中等复杂度（${n} 色），k 试 16`;
+      if (n <= 128) return `颜色偏多（${n} 色），k 试 16–32`;
+      if (n <= 512) return `AI 渐变明显（${n} 色），建议 k=16 清洗`;
+      return `颜色很杂（${n} 色），强烈建议 k=16 重塑色板`;
+    }
+
+    try {
+      await init();
+      setStatus("info", "WASM 模块已加载，可以选择图片了。");
+    } catch (e) {
+      setStatus("error", "WASM 加载失败：" + e.message + " —— 确认 pkg/ 目录存在（wasm-pack build 已完成）");
+      throw e;
+    }
+
+    $("file").addEventListener("change", async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      $("fileName").textContent = f.name;
+      inputBytes = new Uint8Array(await f.arrayBuffer());
+      const url = URL.createObjectURL(new Blob([inputBytes], { type: f.type }));
+      $("orig").src = url;
+      $("orig").style.display = "block";
+      $("origEmpty").style.display = "none";
+      $("run").disabled = false;
+      $("inputMeta").textContent = '统计颜色中…';
+      try {
+        const info = await analyzeInput(inputBytes, f.type);
+        $("inputMeta").textContent =
+          `${info.w}×${info.h} · ${info.colors} 种颜色 · ${suggestK(info.colors)}`;
+      } catch (err) {
+        $("inputMeta").textContent = '';
+      }
+      setStatus("info", `已加载 ${f.name}（${inputBytes.length} 字节）。调好参数后点「处理」。`);
+    });
+
+    $("run").addEventListener("click", () => {
+      if (!inputBytes) return;
+      const k = $("kColors").value.trim();
+      const px = $("pixelSize").value.trim();
+      const pal = $("palette").value.trim();
+      setStatus("info", "处理中…");
+
+      try {
+        const t0 = performance.now();
+        const result = process_image(
+          inputBytes,
+          k ? parseInt(k, 10) : null,
+          px ? parseFloat(px) : null,
+          pal || null
+        );
+        const t1 = performance.now();
+
+        if (outputUrl) URL.revokeObjectURL(outputUrl);
+        outputUrl = URL.createObjectURL(new Blob([result], { type: "image/png" }));
+        $("out").src = outputUrl;
+        $("out").style.display = "block";
+        $("outEmpty").style.display = "none";
+        $("download").disabled = false;
+        setStatus("success", `完成，耗时 ${(t1 - t0).toFixed(0)} ms。`);
+        $("meta").textContent = `输出 ${(result.length / 1024).toFixed(1)} KB`;
+      } catch (e) {
+        setStatus("error", "处理失败：" + (e?.message || e));
+      }
+    });
+
+    $("download").addEventListener("click", () => {
+      if (!outputUrl) return;
+      const a = document.createElement("a");
+      a.href = outputUrl;
+      a.download = "pixel-snapped.png";
+      a.click();
+    });
+  </script>
+</body>
+</html>
