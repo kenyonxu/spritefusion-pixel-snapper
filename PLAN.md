@@ -82,14 +82,23 @@ web/                        # Vite + React + TypeScript，独立前端项目
 
 **目标**：把 `lib.rs`（~1460 行）拆成上面结构，所有现有测试仍绿。为后续 Phase 铺路。
 
-**⚠️ 第一步：基线锁定** — 修改任意代码前先跑一次完整测试，锁定输出 hash 作为「行为零变化」的验收锚点：
+**⚠️ 第一步：基线锁定** — 改任何代码前先录两份基线作为「行为零变化」的验收锚点：编译/测试基线 **和** 图像处理行为基线（`cli_tests` 只测参数解析，不覆盖处理输出，必须单独锁，否则搬家时改出行为差异测试仍绿）。
 ```bash
+# (a) 编译 + 测试基线
 cargo test 2>&1 | tee .phase0-baseline.log
 cargo build --target wasm32-unknown-unknown 2>&1 | tee -a .phase0-baseline.log
-# 后续每步搬家验证测试输出与基线一致
+
+# (b) 图像处理行为基线：对每张样本图跑默认配置，录输出 PNG 的 sha256
+for img in tests/fixtures/baseline/*.png; do
+  stem=$(basename "$img" .png)
+  cargo run --release -- "$img" "tests/fixtures/baseline/expected/$stem.png" 16
+  sha256sum "tests/fixtures/baseline/expected/$stem.png"
+done | tee -a .phase0-baseline.log
+# 每步搬家后重跑 (b)，输出 hash 与基线一致才算「行为零变化」
 ```
 
-- [ ] 基线锁定：`cargo test` + `cargo build --target wasm32` 录 hash
+- [ ] 放 2–3 张代表性样本图到 `tests/fixtures/baseline/`（如 clean / aa-edges / skewed 各一张，可借 unfake.js `demo-pixel.png` 或自造）
+- [ ] 基线锁定：`cargo test` + `cargo build --target wasm32` + 样本图输出 sha256 录入 `.phase0-baseline.log`
 - [ ] 抽 `config.rs`：`Config` 结构 + `Default` impl，新增 `seed: u64` 字段（默认 42），现有 `k_seed` 标 deprecated 别名
 - [ ] 抽 `validate.rs`：`validate_image_dimensions` + pixel_size_override 校验
 - [ ] 抽 `palette.rs`：`parse_palette_hex` + `nearest_palette_color` + `apply_palette`

@@ -2,3 +2,5 @@
 /samples
 /pkg
 .DS_Store
+.phase0-baseline.log
+tests/fixtures/baseline/expected/
