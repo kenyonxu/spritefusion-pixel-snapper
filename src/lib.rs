@@ -166,6 +166,7 @@ pub fn process_image(
     k_colors: Option<u32>,
     pixel_size_override: Option<f64>,
     palette_hex: Option<String>,
+    detect_strategy: Option<String>,
 ) -> std::result::Result<Vec<u8>, wasm_bindgen::JsValue> {
     let mut config = Config::default();
     if let Some(k) = k_colors {
@@ -183,8 +184,63 @@ pub fn process_image(
         .map(parse_palette_hex)
         .transpose()
         .map_err(wasm_bindgen::JsValue::from)?;
+    if let Some(s) = detect_strategy {
+        config.detect_strategy = match s.as_str() {
+            "auto" => detect::DetectStrategy::Auto,
+            "runs" => detect::DetectStrategy::Runs,
+            "tiled" => detect::DetectStrategy::Tiled,
+            "elastic" => detect::DetectStrategy::Elastic,
+            _ => {
+                return Err(wasm_bindgen::JsValue::from_str(
+                    "detect_strategy must be auto|runs|tiled|elastic",
+                ))
+            }
+        };
+    }
 
     process_image_common(input_bytes, Some(config))
         .map(|processed| processed.output_bytes)
         .map_err(wasm_bindgen::JsValue::from)
+}
+
+/// WASM: return candidate list as a JSON string (for Web candidate UI, U2.2).
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn detect_candidates(
+    input_bytes: &[u8],
+    k_colors: Option<u32>,
+    detect_strategy: Option<String>,
+) -> std::result::Result<String, wasm_bindgen::JsValue> {
+    let mut config = Config::default();
+    if let Some(s) = detect_strategy {
+        config.detect_strategy = match s.as_str() {
+            "auto" => detect::DetectStrategy::Auto,
+            "runs" => detect::DetectStrategy::Runs,
+            "tiled" => detect::DetectStrategy::Tiled,
+            "elastic" => detect::DetectStrategy::Elastic,
+            _ => {
+                return Err(wasm_bindgen::JsValue::from_str(
+                    "detect_strategy must be auto|runs|tiled|elastic",
+                ))
+            }
+        };
+    }
+    let _ = k_colors; // detection does not need k_colors
+    let img = image::load_from_memory(input_bytes)
+        .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("{}", e)))?;
+    let (w, h) = img.dimensions();
+    crate::validate::validate_image_dimensions(w, h)
+        .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("{}", e)))?;
+    let rgba = img.to_rgba8();
+    let cands = detect::detect(&rgba, &[], &[], w, h, &config, config.detect_strategy);
+    let json: Vec<String> = cands
+        .iter()
+        .map(|c| {
+            format!(
+                r#"{{"detector":"{:?}","scale":{:?},"step":{},"confidence":{:.3},"cut_method":"{:?}"}}"#,
+                c.detector, c.scale, c.step, c.confidence, c.cut_method
+            )
+        })
+        .collect();
+    Ok(format!("[{}]", json.join(",")))
 }
