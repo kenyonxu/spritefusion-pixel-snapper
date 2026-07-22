@@ -39,6 +39,8 @@ pub(crate) struct ProcessedImage {
     pub(crate) pixel_size_override: bool,
     pub(crate) output_width: u32,
     pub(crate) output_height: u32,
+    pub(crate) selected_detector: Option<crate::detect::DetectStrategy>,
+    pub(crate) candidates: Vec<crate::detect::DetectionCandidate>,
 }
 
 /// Shared pipeline entry point for both the CLI and WASM targets.
@@ -93,6 +95,7 @@ pub(crate) fn process_image_common(input_bytes: &[u8], config: Option<Config>) -
                 cut_method: CutMethod::Walker,
             }
         });
+    let selected_detector = Some(chosen.detector);
 
     let (col_cuts, row_cuts) = match chosen.cut_method {
         CutMethod::Uniform => {
@@ -149,6 +152,8 @@ pub(crate) fn process_image_common(input_bytes: &[u8], config: Option<Config>) -
         pixel_size_override: config.pixel_size_override.is_some(),
         output_width: (col_cuts.len() - 1) as u32,
         output_height: (row_cuts.len() - 1) as u32,
+        selected_detector,
+        candidates,
     })
 }
 

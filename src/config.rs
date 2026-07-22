@@ -33,6 +33,7 @@ pub struct Config {
     pub(crate) runs_min_runs: usize,
     pub(crate) tiled_stddev_threshold: f64,
     pub(crate) tiled_peak_ratio: f64,
+    pub(crate) json_output: bool,
 }
 
 impl Default for Config {
@@ -57,6 +58,7 @@ impl Default for Config {
             tiled_peak_ratio: 0.6,
             pixel_size_override: None,
             palette: None,
+            json_output: false,
         }
     }
 }

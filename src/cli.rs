@@ -135,6 +135,7 @@ fn print_cli_help() {
             "  --pixel-size <PIXELS>  Override the auto-detected pixel size\n",
             "  --palette <HEX,...>    Use comma-separated 6-digit hex palette colors\n",
             "  --detect <auto|runs|tiled|elastic>  Grid detection strategy [default: auto]\n",
+            "  --json                 Output detection candidates as JSON instead of processing\n",
             "  -h, --help             Print help\n",
             "  -V, --version          Print version\n\n",
             "EXAMPLES:\n",
@@ -223,6 +224,10 @@ fn parse_cli_args(args: &[String]) -> Result<CliCommand> {
                 };
                 i += 2;
             }
+            "--json" => {
+                config.json_output = true;
+                i += 1;
+            }
             arg if arg.starts_with("--") => {
                 return Err(PixelSnapperError::InvalidInput(format!(
                     "unknown argument '{}'",
@@ -262,6 +267,34 @@ fn process_single(config: &Config) -> Result<()> {
     let input_path = Path::new(&config.input_path);
     let output_path = Path::new(&config.output_path);
     let processed = process_file(input_path, output_path, config)?;
+    if config.json_output {
+        let selected = processed
+            .selected_detector
+            .unwrap_or(crate::detect::DetectStrategy::Auto);
+        let cand_json: Vec<String> = processed
+            .candidates
+            .iter()
+            .map(|c| {
+                format!(
+                    r#"{{"detector":"{:?}","scale":{:?},"step":{},"confidence":{:.3},"cut_method":"{:?}","selected":{}}}"#,
+                    c.detector,
+                    c.scale,
+                    c.step,
+                    c.confidence,
+                    c.cut_method,
+                    c.detector == selected
+                )
+            })
+            .collect();
+        println!(
+            r#"{{"pixel_size":{:.1},"output_size":"{}x{}","candidates":[{}]}}"#,
+            processed.pixel_size,
+            processed.output_width,
+            processed.output_height,
+            cand_json.join(",")
+        );
+        return Ok(());
+    }
     println!("Processing: {}", config.input_path);
     print_processed_image(
         processed.pixel_size,
