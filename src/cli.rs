@@ -15,6 +15,20 @@ pub struct BatchConfig {
     pub k_colors: usize,
     pub pixel_size_override: Option<f64>,
     pub palette: Option<Vec<[u8; 3]>>,
+    #[test]
+    fn parses_detect_strategy_flag() {
+        let command = parse_cli_args(&args(&[
+            "input.png",
+            "output.png",
+            "--detect",
+            "tiled",
+        ]))
+        .unwrap();
+        let CliCommand::Run(config) = command else {
+            panic!("expected Run");
+        };
+        assert_eq!(config.detect_strategy, crate::detect::DetectStrategy::Tiled);
+    }
 }
 
 impl From<&Config> for BatchConfig {
@@ -120,6 +134,7 @@ fn print_cli_help() {
             "OPTIONS:\n",
             "  --pixel-size <PIXELS>  Override the auto-detected pixel size\n",
             "  --palette <HEX,...>    Use comma-separated 6-digit hex palette colors\n",
+            "  --detect <auto|runs|tiled|elastic>  Grid detection strategy [default: auto]\n",
             "  -h, --help             Print help\n",
             "  -V, --version          Print version\n\n",
             "EXAMPLES:\n",
@@ -186,6 +201,26 @@ fn parse_cli_args(args: &[String]) -> Result<CliCommand> {
                 };
 
                 config.palette = Some(parse_palette_hex(val)?);
+                i += 2;
+            }
+            "--detect" => {
+                let Some(val) = args.get(i + 1) else {
+                    return Err(PixelSnapperError::InvalidInput(
+                        "--detect requires a value".to_string(),
+                    ));
+                };
+                config.detect_strategy = match val.as_str() {
+                    "auto" => crate::detect::DetectStrategy::Auto,
+                    "runs" => crate::detect::DetectStrategy::Runs,
+                    "tiled" => crate::detect::DetectStrategy::Tiled,
+                    "elastic" => crate::detect::DetectStrategy::Elastic,
+                    _ => {
+                        return Err(PixelSnapperError::InvalidInput(format!(
+                            "invalid --detect '{}' (expected auto|runs|tiled|elastic)",
+                            val
+                        )))
+                    }
+                };
                 i += 2;
             }
             arg if arg.starts_with("--") => {
