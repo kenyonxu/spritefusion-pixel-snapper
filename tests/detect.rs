@@ -20,7 +20,6 @@ fn elastic_returns_walker_candidate_for_ai_sprite() {
     }));
 }
 #[test]
-#[ignore = "fixture added in Task 10"]
 fn runs_detects_clean_fixture() {
     let img = load_fixture("clean.png");
     let (w, h) = img.dimensions();
@@ -48,7 +47,6 @@ fn runs_returns_none_on_tiny_noise() {
     assert!(cands.is_empty() || cands[0].confidence < 0.9);
 }
 #[test]
-#[ignore = "fixture added in Task 10"]
 fn tiled_detects_complex_fixture() {
     let img = load_fixture("complex-bg.png");
     let (w, h) = img.dimensions();
@@ -85,4 +83,32 @@ fn auto_picks_elastic_for_ai_sprite() {
         best.detector,
         DetectStrategy::Runs | DetectStrategy::Tiled | DetectStrategy::Elastic
     ));
+}
+#[test]
+fn elastic_detects_skewed_fixture() {
+    let img = load_fixture("skewed.png");
+    let (w, h) = img.dimensions();
+    let config = spritefusion_pixel_snapper::Config::default();
+    let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Elastic);
+    assert!(cands.iter().any(|c| c.detector == DetectStrategy::Elastic));
+}
+
+#[test]
+fn auto_picks_correct_detector_per_fixture() {
+    for (name, expected) in [
+        ("clean.png", DetectStrategy::Runs),
+        ("complex-bg.png", DetectStrategy::Tiled),
+        ("skewed.png", DetectStrategy::Elastic),
+    ] {
+        let img = load_fixture(name);
+        let (w, h) = img.dimensions();
+        let config = spritefusion_pixel_snapper::Config::default();
+        let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Auto);
+        let (best, _) = select_best(&cands, DetectStrategy::Auto).expect("non-empty");
+        assert_eq!(
+            best.detector, expected,
+            "fixture {} selected {:?}",
+            name, best.detector
+        );
+    }
 }
