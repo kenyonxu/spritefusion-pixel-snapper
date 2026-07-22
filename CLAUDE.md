@@ -20,14 +20,27 @@ wasm-pack build --target web --out-dir pkg --release   # WASM build → pkg/spri
 
 Binary name (and crate name) is `spritefusion-pixel-snapper`; the WASM JS export is `process_image`. No linter/formatter config exists in-repo — `cargo fmt` / `cargo clippy` work but aren't wired to CI.
 
-## Architecture: dual-target via conditional compilation
+## Architecture: dual-target + modular pipeline
 
-This is the central architectural fact. Almost every function and struct in [src/lib.rs](src/lib.rs) is split by `cfg`:
+The crate compiles to two targets from the same source:
 
-- **WASM target** (`cfg(target_arch = "wasm32")`): `process_image` is `#[wasm_bindgen]`, `Config` derives `wasm_bindgen`, `PixelSnapperError` converts to `JsValue`, `main` is empty. Filesystem, `env`, `rayon`, CLI parsing, batch processing — all excluded.
-- **Native target** (`cfg(not(target_arch = "wasm32"))`): `run_cli` parses args by hand (no `clap`), drives single-file or batch processing, uses `rayon` for parallelism, emits `BatchEvent`s through a reporter callback.
+- **WASM** (`cfg(target_arch = "wasm32")`): the `#[wasm_bindgen]` export `process_image` in [src/lib.rs](src/lib.rs).
+- **Native CLI**: [src/cli.rs](src/cli.rs) is gated by `#![cfg(not(target_arch = "wasm32"))]` — the whole file is native-only, holding `run_cli`, hand-rolled arg parsing (no `clap`), single-file/batch processing (`rayon`-parallel, `BatchEvent` reporter), and the `cli_tests`. [src/main.rs](src/main.rs) is a 7-line shim calling `run_cli`.
 
-[src/main.rs](src/main.rs) is a 7-line shim that picks the right path. Don't add `clap` or other CLI deps without considering the WASM build — they'd be dead weight under `cfg(wasm32)`.
+The shared pipeline entry [`process_image_common`](src/lib.rs) (pub(crate)) is used by both targets. Each pipeline stage lives in its own module — keep `lib.rs` as orchestration only, add new stages as new modules:
+
+| Stage | Module | Notes |
+|-------|--------|-------|
+| Config + Default | [config.rs](src/config.rs) | fields `pub(crate)`; `seed` (renamed from `k_seed`) drives all RNG |
+| Errors | [error.rs](src/error.rs) | `PixelSnapperError` + `Result`; `JsValue` conv under wasm |
+| Quantize (k-means++) | [quantize.rs](src/quantize.rs) | analysis-only color reduction |
+| Profiles + step estimate | [profile.rs](src/profile.rs) | `compute_profiles` / `estimate_step_size` / `resolve_step_sizes` |
+| Stabilize (walker + cuts) | [stabilize.rs](src/stabilize.rs) | `walk`, `stabilize_both_axes`, `stabilize_cuts`, `snap_uniform_cuts`, `sanitize_cuts` |
+| Resample (majority vote) | [resample.rs](src/resample.rs) | grid-cell majority, deterministic RGBA tie-break |
+| Palette | [palette.rs](src/palette.rs) | `parse_palette_hex` / `apply_palette` / `nearest_palette_color` + `MAX_PALETTE_COLORS` |
+| Validate | [validate.rs](src/validate.rs) | dimension checks |
+
+Don't add `clap` or other CLI deps — they'd be dead weight under `cfg(wasm32)`.
 
 The crate is `cdylib` + `rlib` ([Cargo.toml](Cargo.toml)): `cdylib` for the WASM `.wasm`/`.js`, `rlib` so `cargo test` can link against it natively.
 
@@ -46,7 +59,7 @@ The crate is `cdylib` + `rlib` ([Cargo.toml](Cargo.toml)): `cdylib` for the WASM
 
 ## Tuning knobs
 
-`Config` (default impl at [src/lib.rs:46](src/lib.rs#L46)) holds ~11 parameters that control detection stability. The public CLI only exposes `k_colors`, `pixel_size_override`, and `palette`; everything else is internal. When debugging "wrong grid detected on this image," the usual suspects are `max_step_ratio` (skew), `walker_search_window_ratio` / `walker_strength_threshold` (peak sensitivity), and `fallback_target_segments` (last-resort grid density).
+`Config` (default impl in [src/config.rs](src/config.rs)) holds ~11 parameters that control detection stability. The public CLI only exposes `k_colors`, `pixel_size_override`, and `palette`; everything else is internal. When debugging "wrong grid detected on this image," the usual suspects are `max_step_ratio` (skew), `walker_search_window_ratio` / `walker_strength_threshold` (peak sensitivity), and `fallback_target_segments` (last-resort grid density).
 
 ## Constraints enforced in code
 
