@@ -5,6 +5,7 @@
 
 mod cli;
 mod config;
+pub mod detect;
 mod error;
 mod palette;
 mod profile;
