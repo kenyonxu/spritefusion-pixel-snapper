@@ -21,3 +21,9 @@ fn dominant_variant_constructible() {
     let _d = ResampleMethod::Dominant;
     assert!(true);
 }
+
+#[test]
+fn mode_variant_constructible() {
+    let _m = ResampleMethod::Mode;
+    assert!(true);
+}

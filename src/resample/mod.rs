@@ -3,6 +3,7 @@
 mod majority;
 mod median;
 mod dominant;
+mod mode;
 
 use crate::error::Result;
 use crate::Config;
@@ -26,7 +27,6 @@ pub fn resample(
         ResampleMethod::Majority => majority::resample_majority(img, cols, rows, config),
         ResampleMethod::Median => median::resample_median(img, cols, rows, config),
         ResampleMethod::Dominant => dominant::resample_dominant(img, cols, rows, config),
-        // wired in Task 5
-        _ => majority::resample_majority(img, cols, rows, config),
+        ResampleMethod::Mode => mode::resample_mode(img, cols, rows, config),
     }
 }
