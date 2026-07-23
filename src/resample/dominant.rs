@@ -49,10 +49,10 @@ pub(crate) fn resample_dominant(
             let pixel = if total == 0 {
                 [0, 0, 0, 0]
             } else {
-                // top color
+                // top color (highest count; tie → lowest RGBA value, deterministic)
                 let (top_color, top_count) = counts
                     .iter()
-                    .max_by(|a, b| a.1.cmp(b.1))
+                    .max_by(|a, b| a.1.cmp(b.1).then(b.0.cmp(&a.0)))
                     .map(|(c, n)| (*c, *n))
                     .unwrap_or(([0, 0, 0, 0], 0));
                 let chosen = if (top_count as f64 / total as f64) >= threshold {
