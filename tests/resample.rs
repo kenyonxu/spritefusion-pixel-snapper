@@ -15,3 +15,9 @@ fn median_runs_and_is_deterministic() {
     // smoke: image loads, has pixels
     assert!(img.width() > 0);
 }
+
+#[test]
+fn dominant_variant_constructible() {
+    let _d = ResampleMethod::Dominant;
+    assert!(true);
+}
