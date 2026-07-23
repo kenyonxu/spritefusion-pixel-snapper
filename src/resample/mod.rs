@@ -4,6 +4,7 @@ mod majority;
 mod median;
 mod dominant;
 mod mode;
+mod qvote;
 
 use crate::error::Result;
 use crate::Config;
@@ -15,6 +16,7 @@ pub enum ResampleMethod {
     Median,
     Dominant,
     Mode,
+    Qvote,
 }
 
 pub fn resample(
@@ -28,5 +30,6 @@ pub fn resample(
         ResampleMethod::Median => median::resample_median(img, cols, rows, config),
         ResampleMethod::Dominant => dominant::resample_dominant(img, cols, rows, config),
         ResampleMethod::Mode => mode::resample_mode(img, cols, rows, config),
+        ResampleMethod::Qvote => qvote::resample_qvote(img, cols, rows, config),
     }
 }

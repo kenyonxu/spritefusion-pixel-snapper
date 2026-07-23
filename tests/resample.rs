@@ -130,7 +130,7 @@ fn manual_method_respected() {
 
 #[test]
 fn each_strategy_produces_deterministic_output() {
-    for m in ["majority", "median", "dominant", "mode"] {
+    for m in ["majority", "median", "dominant", "mode", "qvote"] {
         let out = tmp(&format!("det_{}.png", m));
         assert!(run_cli(&[
             "tests/fixtures/baseline/ai-sprite.png",

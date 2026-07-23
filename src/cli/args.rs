@@ -53,7 +53,7 @@ pub fn print_cli_help() {
             "  --pixel-size <PIXELS>                       Override the auto-detected pixel size\n",
             "  --palette <HEX,...>                         Use comma-separated 6-digit hex palette colors\n",
             "  --detect <auto|runs|tiled|elastic>          Grid detection strategy [default: auto]\n",
-            "  --resample <majority|median|dominant|mode>  Grid-cell reduction [default: majority]\n",
+            "  --resample <majority|median|dominant|mode|qvote>  Grid-cell reduction [default: majority]\n",
             "  --sample-window <1-9>                       Median neighborhood [default: 3]\n",
             "  --json                                      Output detection candidates as JSON instead of processing\n",
             "  -h, --help                                  Print help\n",
@@ -155,9 +155,10 @@ pub fn parse_cli_args(args: &[String]) -> Result<CliCommand> {
                     "median" => crate::resample::ResampleMethod::Median,
                     "dominant" => crate::resample::ResampleMethod::Dominant,
                     "mode" => crate::resample::ResampleMethod::Mode,
+                    "qvote" => crate::resample::ResampleMethod::Qvote,
                     _ => {
                         return Err(PixelSnapperError::InvalidInput(format!(
-                            "invalid --resample '{}' (expected majority|median|dominant|mode)",
+                            "invalid --resample '{}' (expected majority|median|dominant|mode|qvote)",
                             val
                         )))
                     }
