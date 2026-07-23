@@ -215,7 +215,7 @@ done | tee -a .phase0-baseline.log
 
 ---
 
-## Phase 3 — 量化增强
+## Phase 3 — 量化增强 ✅
 
 **目标**：Oklab 感知量化 + dithering + 主机调色板。**全程不碰 imagequant**。
 
@@ -227,24 +227,39 @@ done | tee -a .phase0-baseline.log
 
 ### 任务
 
-- [ ] `quantize/oklab.rs`：sRGB↔Oklab 双向转换 + Oklab 平方欧氏距离
-- [ ] 改造 `quantize/kmeans.rs`：距离从 RGB 迁到 Oklab；`Config.quantize.colorspace { Rgb, Oklab }`（Rgb 为默认保旧行为）
-- [ ] `quantize/dither.rs`：Floyd-Steinberg（7/3/5/1，strength 可调，跳 alpha=0）、Bayer 2/4/8、Ordered；`DitherMethod { None, FloydSteinberg, Bayer(N), Ordered }`
-- [ ] `quantize/palettes.rs`：NES / GameBoy / SGB / SNES / PC-9801 / MSX1 / PICO-8 / Sweetie16 / Endesga 等；`PresetPalette` enum
-- [ ] `Config.quantize`：`colorspace` + `dither` + `dither_strength` + `preset_palette: Option<PresetPalette>`
-- [ ] CLI `--colorspace <rgb|oklab>` + `--dither <...>` + `--preset <nes|gb|...>`
-- [ ] 固定调色板路径：preset 优先 > 自定义 hex > k-means
-- [ ] 回归测试：Oklab vs RGB 输出对比 fixture；每个 dither 一个 fixture；每个 preset 一个 fixture
-- [ ] **Breaking change 处理**：Oklab 迁移改变默认输出 → 保留 RGB 为默认，Oklab 显式开启；或 bump major version（2.0）
+- [x] `quantize/oklab.rs`：sRGB↔Oklab 双向转换 + Oklab 平方欧氏距离（← PixelRefiner colorUtils）
+- [x] `quantize/kmeans.rs`：`Colorspace` 分支；**Oklab 为默认**（spec 决策：无外部用户，Oklab 默认优于 plan 的 RGB 默认 + opt-in）；RGB 路径 byte-identical 保 v1.x anchor
+- [x] `quantize/dither.rs`：FS（7/3/5/1 + strength）+ Bayer 2/4/8 + Ordered —— ⚠️ **bayer 8×8 递归在归一化域（非标准）**，`--dither bayer8` 输出偏，待修
+- [x] `quantize/palettes.rs`：**7 真实**（NES deduped 55 / GB / PC-9801 / MSX1 / PICO-8 / Sweetie16 / Endesga32←lospec）+ **SGB/SNES no-op**（无 canonical palette，`palette()` 返 None）
+- [x] `Config.quantize`：`colorspace` + `dither` + `dither_strength` + `preset_palette`
+- [x] CLI `--colorspace` / `--dither` / `--dither-strength` / `--preset`
+- [x] 调色板优先级 → **实现偏差**：`custom`（--palette）> `preset` > k-means（非 plan 的 preset > custom；spec 决策，custom 在 `process_image_common` 后 quantize 覆盖 preset）
+- [x] 回归测试：`tests/quantize.rs`（30 passed）；Oklab anchor `3a589ee9…e4420` + RGB anchor `802857…9f22`；PICO-8 preset 颜色约束测试
+- [x] **Breaking change 处理**：RGB 兼容路径（`--colorspace rgb` → `802857…9f22`）+ Oklab 默认（`3a589ee9…`）+ **bump 2.0**
+
+**额外交付（spec 范围，PLAN 未单列）**：
+- [x] 项目更名 `spritefusion-pixel-snapper` → **`pixel-game-kit`** + bump 2.0（Task 1，已 GitHub repo rename）
+- [x] qvote 回填（Phase 2 推迟项）→ `resample/qvote.rs` —— **lite**（whole-pixel vote，≈majority；真正 per-cell Oklab clustering 推迟）
+- [x] WASM `process_image` 加 `colorspace` / `dither` / `preset_palette` 参数
 
 ### 验收
-- Oklab 量化在渐变图上色带比 RGB 平滑
-- dithering 可见且可关
-- 主机调色板准确（与原始主机色值对比）
+- ✅ Oklab 默认（渐变平滑）+ RGB 兼容（anchor `802857…9f22` 锁定）
+- ✅ dithering 可见可关（FS/Bayer/Ordered 都跑通）
+- ✅ 调色板准确（7 真实；PICO-8 颜色约束测试过；SGB/SNES 文档化 no-op）
+- ✅ 30 test passed，wasm 0 warning
 
 ### 风险
-- Oklab 改变输出 → 当 breaking change，加 colorspace 配置兼容
-- dithering 破坏确定性？不会——FS/Bayer 都是无 RNG 的确定过程，满足 R1
+- Oklab 改变输出 → ✅ RGB 兼容（`--colorspace rgb`）+ bump 2.0
+- dithering 确定性 → ✅ FS/Bayer 无 RNG（R1 持）
+- ⚠️ **实施新增**：bayer8 递归非标准（plan bug，`--dither bayer8` 偏）；qvote-lite ≈ majority（真正 per-cell Oklab 推迟）；SGB/SNES 无 canonical palette
+
+### 实施记录
+
+- **分支**：`feat/phase3-quantize`（10 commit，已合并 main `4f4e691`；GitHub repo 同步 rename `pixel-game-kit`）
+- **结果**：`quantize/{mod,kmeans,oklab,dither,palettes}.rs` + `resample/qvote.rs` + Config 字段 + CLI 4 flags + WASM 3 params + `tests/quantize.rs`
+- **关键决策**（spec）：Oklab 默认（无外部用户，质量优先）；调色板 custom > preset；更名 pixel-game-kit + 2.0
+- **执行方式**：subagent-driven（10 task × implementer，混合手动 review 省 reviewer 额度）；关键 gate（sha256 双锚定 + wasm 0 warning）逐 task 验证
+- **遗留**：bayer8 递归非标准（dither=bayer8 输出偏，待修）；qvote-lite（真正 per-cell Oklab clustering 推迟）；native unused-import warning（pre-existing，非 wasm 路径，待清理）；本地目录名仍 `spritefusion-pixel-snapper`（repo rename 不改本地目录）
 
 ---
 
