@@ -1,6 +1,7 @@
 //! Color quantization: k-means (RGB or Oklab), dithering, palettes.
 
 mod kmeans;
+mod dither;
 pub(crate) mod oklab;
 
 use crate::error::Result;
@@ -38,5 +39,7 @@ pub enum PresetPalette {
 }
 
 pub fn quantize(img: &RgbaImage, config: &Config) -> Result<RgbaImage> {
-    kmeans::quantize_kmeans(img, config)
+    let mut img = img.clone();
+    dither::apply(&mut img, config.quantize_dither, config.quantize_dither_strength);
+    kmeans::quantize_kmeans(&img, config)
 }
