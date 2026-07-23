@@ -25,7 +25,6 @@ use detect::{detect, select_best, CutMethod, DetectionCandidate, DetectStrategy}
 use palette::{apply_palette, parse_palette_hex};
 use profile::{compute_profiles, estimate_step_size, resolve_step_sizes};
 use quantize::quantize_image;
-use resample::resample;
 use stabilize::{snap_uniform_cuts, walk, stabilize_both_axes};
 use validate::validate_image_dimensions;
 
@@ -133,7 +132,7 @@ pub(crate) fn process_image_common(input_bytes: &[u8], config: Option<Config>) -
         }
     };
 
-    let snapped_img = resample(&analysis_img, &col_cuts, &row_cuts)?;
+    let snapped_img = resample::resample(&analysis_img, &col_cuts, &row_cuts, &config)?;
     let output_img = match config.palette.as_deref() {
         Some(palette) => apply_palette(&snapped_img, palette)?,
         None => snapped_img,

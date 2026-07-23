@@ -1,11 +1,17 @@
-//! Grid-cell resampling via majority vote (deterministic tie-break by RGBA ordering).
+//! Whole-pixel majority vote with deterministic RGBA tie-break.
 
 use crate::error::{PixelSnapperError, Result};
+use crate::Config;
 use image::{ImageBuffer, Rgba, RgbaImage};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-pub fn resample(img: &RgbaImage, cols: &[usize], rows: &[usize]) -> Result<RgbaImage> {
+pub(crate) fn resample_majority(
+    img: &RgbaImage,
+    cols: &[usize],
+    rows: &[usize],
+    _config: &Config,
+) -> Result<RgbaImage> {
     if cols.len() < 2 || rows.len() < 2 {
         return Err(PixelSnapperError::ProcessingError(
             "Insufficient grid cuts for resampling".to_string(),
@@ -38,7 +44,6 @@ pub fn resample(img: &RgbaImage, cols: &[usize], rows: &[usize]) -> Result<RgbaI
             }
 
             let mut best_pixel = [0, 0, 0, 0];
-
             let mut candidates: Vec<([u8; 4], usize)> = counts.into_iter().collect();
             candidates.sort_by(|a, b| {
                 let count_cmp = b.1.cmp(&a.1);
@@ -48,7 +53,6 @@ pub fn resample(img: &RgbaImage, cols: &[usize], rows: &[usize]) -> Result<RgbaI
                     count_cmp
                 }
             });
-
             if let Some(winner) = candidates.first() {
                 best_pixel = winner.0;
             }
