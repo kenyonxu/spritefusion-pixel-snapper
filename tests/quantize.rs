@@ -86,3 +86,80 @@ fn oklab_default_is_deterministic() {
     );
     assert!(!h1.is_empty());
 }
+
+/// Every dither method must run end-to-end and produce a valid PNG. The dither
+/// is applied pre-k-means (see `quantize::quantize`), so it perturbs the input
+/// to k-means but doesn't change the pipeline shape — we just sanity-check that
+/// each variant produces 64 hex chars of sha256 output (i.e. a real file was
+/// written). Locking the actual hashes would be brittle (FS/Bayer intentionally
+// shift pixels), so we lock shape, not bytes.
+#[test]
+fn each_dither_runs() {
+    for d in ["fs", "bayer2", "bayer4", "bayer8", "ordered"] {
+        let out = tmp(&format!("d_{}.png", d));
+        assert!(
+            run(&[
+                "tests/fixtures/baseline/ai-sprite.png",
+                out.as_str(),
+                "16",
+                "--dither",
+                d,
+            ]),
+            "dither {} failed",
+            d,
+        );
+        assert_eq!(
+            sha(&out).len(),
+            64,
+            "dither {} produced no valid output",
+            d,
+        );
+    }
+}
+
+/// `--preset pico8` snaps every k-means centroid to the nearest PICO-8 color
+/// before resample. The resample majority vote then selects among those
+/// snapped colors, so every output pixel must be one of the 16 PICO-8 entries.
+/// If any pixel isn't, the preset snap (Task 6) regressed.
+#[test]
+fn preset_palette_output_stays_in_preset() {
+    let out = tmp("pico8.png");
+    assert!(run(&[
+        "tests/fixtures/baseline/ai-sprite.png",
+        out.as_str(),
+        "16",
+        "--preset",
+        "pico8",
+    ]));
+    let img = image::open(&out)
+        .expect("preset output should be a readable PNG")
+        .to_rgba8();
+    let pico8: Vec<[u8; 3]> = vec![
+        [0, 0, 0],
+        [29, 43, 83],
+        [126, 37, 83],
+        [0, 135, 81],
+        [171, 82, 54],
+        [95, 87, 79],
+        [194, 195, 199],
+        [255, 241, 232],
+        [255, 0, 77],
+        [255, 163, 0],
+        [255, 236, 39],
+        [0, 228, 54],
+        [41, 173, 255],
+        [131, 118, 156],
+        [255, 119, 168],
+        [255, 204, 170],
+    ];
+    for p in img.pixels() {
+        if p[3] == 0 {
+            continue;
+        }
+        assert!(
+            pico8.contains(&[p[0], p[1], p[2]]),
+            "color {:?} not in PICO-8",
+            p,
+        );
+    }
+}

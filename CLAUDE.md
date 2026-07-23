@@ -33,7 +33,7 @@ The shared pipeline entry [`process_image_common`](src/lib.rs) (pub(crate)) is u
 |-------|--------|-------|
 | Config + Default | [config.rs](src/config.rs) | fields `pub(crate)`; `seed` (renamed from `k_seed`) drives all RNG |
 | Errors | [error.rs](src/error.rs) | `PixelSnapperError` + `Result`; `JsValue` conv under wasm |
-| Quantize (k-means++) | [quantize.rs](src/quantize.rs) | analysis-only color reduction |
+| Quantize (Oklab/dither/palettes) | [quantize/mod.rs](src/quantize/mod.rs) | `Colorspace` (Oklab default) / `DitherMethod` / `PresetPalette` + k-means |
 | Profiles + step estimate | [profile.rs](src/profile.rs) | `compute_profiles` / `estimate_step_size` / `resolve_step_sizes` |
 | Detect (runs/tiled/elastic) | [detect/mod.rs](src/detect/mod.rs) | candidate-returning detectors + Auto select |
 | Stabilize (walker + cuts) | [stabilize.rs](src/stabilize.rs) | `walk`, `stabilize_both_axes`, `stabilize_cuts`, `snap_uniform_cuts`, `sanitize_cuts` |
@@ -49,7 +49,7 @@ The crate is `cdylib` + `rlib` ([Cargo.toml](Cargo.toml)): `cdylib` for the WASM
 
 `process_image_common` is the single entry point for both targets. The stages run strictly in order and each one's output feeds the next — changing an early stage silently perturbs everything downstream:
 
-1. **`quantize_image`** — k-means++ (seeded `ChaCha8Rng`, `k_seed = 42`) reduces the image to `k_colors` centroids. Result is used *only as analysis input* for grid detection; final colors come from a separate path. Note: the TODO comment flags `kmeans_colors` crate as a faster alternative.
+1. **`quantize`** — k-means++ (seeded `ChaCha8Rng`, `seed = 42`). Colorspace is **Oklab by default** (perceptually uniform — smoother gradients); `--colorspace rgb` reverts to the Phase 0-2 RGB path (whose ai-sprite anchor is `802857...9f22`). Optional dithering (`--dither fs|bayer2|bayer4|bayer8|ordered`) runs pre-k-means. Optional preset palette (`--preset nes|gameboy|pico8|sweetie16|endesga32|...`) snaps output to a fixed palette after k-means; `sgb`/`snes` are accepted but no-op (no canonical palette). The default ai-sprite anchor under Oklab is `3a589ee9...e4420`.
 2. **`compute_profiles`** — projects a `[-1, 0, 1]` gradient kernel across rows and columns → two 1-D edge-strength profiles. Transparent pixels contribute 0.
 3. **`detect`** — runs `runs` (GCD + posterize), `tiled` (Sobel + autocorrelation), and/or `elastic` (gradient walker) per `DetectStrategy`. Returns ranked `DetectionCandidate`s (detector, scale, step, confidence, cut_method). Auto runs all three; selection priority Runs>Tiled>Elastic then confidence.
 4. **`cut`** — branches on the selected candidate's `cut_method`: `Uniform` → `snap_uniform_cuts` (integer grid); `Walker` → `walk` + `stabilize_both_axes` (skew/continuous).
@@ -58,7 +58,7 @@ The crate is `cdylib` + `rlib` ([Cargo.toml](Cargo.toml)): `cdylib` for the WASM
 
 ## Tuning knobs
 
-`Config` (default impl in [src/config.rs](src/config.rs)) holds ~15 parameters that control detection stability and resampling. The public CLI exposes `k_colors`, `pixel_size_override`, `palette`, `--detect` (strategy), `--resample` (strategy), `--sample-window` (median only), and `--json` (candidate output); everything else is internal. When debugging "wrong grid detected on this image," the usual suspects are `max_step_ratio` (skew), `walker_search_window_ratio` / `walker_strength_threshold` (peak sensitivity), and `fallback_target_segments` (last-resort grid density). For resampling, the internal fields are `resample_method`, `resample_sample_window`, `resample_dominant_threshold`, and `resample_dominant_binarize_alpha`.
+`Config` (default impl in [src/config.rs](src/config.rs)) holds ~15 parameters that control detection stability and resampling. The public CLI exposes `k_colors`, `pixel_size_override`, `palette`, `--detect` (strategy), `--resample` (strategy), `--sample-window` (median only), `--colorspace`, `--dither`, `--dither-strength`, `--preset`, and `--json` (candidate output); everything else is internal. When debugging "wrong grid detected on this image," the usual suspects are `max_step_ratio` (skew), `walker_search_window_ratio` / `walker_strength_threshold` (peak sensitivity), and `fallback_target_segments` (last-resort grid density). For resampling, the internal fields are `resample_method`, `resample_sample_window`, `resample_dominant_threshold`, and `resample_dominant_binarize_alpha`. For quantize, the internal fields are `quantize_colorspace`, `quantize_dither`, `quantize_dither_strength`, and `quantize_preset_palette`.
 
 ## Constraints enforced in code
 
@@ -70,4 +70,4 @@ The crate is `cdylib` + `rlib` ([Cargo.toml](Cargo.toml)): `cdylib` for the WASM
 
 ## Determinism
 
-All randomness flows through `ChaCha8Rng::seed_from_u64(42)`. The same input image + same `Config` always produces byte-identical output — preserve this when refactoring k-means or the walker.
+All randomness flows through `ChaCha8Rng::seed_from_u64(42)`. The same input image + same `Config` always produces byte-identical output — preserve this when refactoring k-means or the walker. Since v2.0 the default colorspace is Oklab (ai-sprite anchor `3a589ee9...e4420`); `--colorspace rgb` preserves the v1.x anchor `802857...9f22`.
