@@ -6,6 +6,7 @@
 //! the wasm_bindgen export consumed by JS.
 
 use crate::detect::DetectStrategy;
+use crate::quantize::{Colorspace, DitherMethod, PresetPalette};
 use crate::resample::ResampleMethod;
 
 #[derive(Debug, Clone)]
@@ -41,6 +42,10 @@ pub struct Config {
     pub(crate) resample_sample_window: usize,
     pub(crate) resample_dominant_threshold: f64,
     pub(crate) resample_dominant_binarize_alpha: bool,
+    pub(crate) quantize_colorspace: Colorspace,
+    pub(crate) quantize_dither: DitherMethod,
+    pub(crate) quantize_dither_strength: f64,
+    pub(crate) quantize_preset_palette: PresetPalette,
 }
 
 impl Default for Config {
@@ -70,6 +75,10 @@ impl Default for Config {
             resample_sample_window: 3,
             resample_dominant_threshold: 0.15,
             resample_dominant_binarize_alpha: false,
+            quantize_colorspace: Colorspace::Rgb, // Task 4 flips default to Oklab
+            quantize_dither: DitherMethod::None,
+            quantize_dither_strength: 1.0,
+            quantize_preset_palette: PresetPalette::None,
         }
     }
 }
