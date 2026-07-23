@@ -170,7 +170,7 @@ done | tee -a .phase0-baseline.log
 
 ---
 
-## Phase 2 — 重采样策略
+## Phase 2 — 重采样策略 ✅
 
 **目标**：majority 之外给 median（带 AA 去除）、dominant/mode/qvote（抗噪）、content-adaptive（感知最优）。
 
@@ -181,24 +181,37 @@ done | tee -a .phase0-baseline.log
 
 ### 任务
 
-- [ ] `resample/median.rs`：per-channel median，`sample_window` 邻域，优先 alpha≥16 不透明像素
-- [ ] `resample/dominant.rs`：HashMap 计数，主色占比 ≥ 阈值（默认 0.15）取主色，否则 mean fallback；alpha 硬二值化（可配）
-- [ ] `resample/dominant.rs` 内补 `mode` / `qvote`（qvote 先 imagequant-free 量化再投票——用 P3 的 Oklab k-means 替代 imagequant）
-- [ ] `resample/em.rs`（feature `content-adaptive`，默认关）：Öztireli-Gross 5 次 EM 迭代，sRGB/D65 Lab 空间，Gaussian 加权 GMM，`clamp_covariance` 特征值 [0.5, 0.5·r_avg]，RATIO_CAP=3 预缩放
-- [ ] `ResampleMethod { Majority, Median, Dominant, Mode, Qvote, ContentAdaptive }`
-- [ ] `Config.resample.method` + `sample_window` + `dominant_threshold`
-- [ ] CLI `--resample <...>` + `--sample-window <n>`
-- [ ] 回归测试：每策略一个 fixture + hash
-- [ ] benchmark：`cargo bench`（criterion）记录各策略耗时，EM 单列
+- [x] `resample/median.rs`：per-channel median + `sample_window` 邻域，优先 alpha≥16（← PixelRefiner）
+- [x] `resample/dominant.rs`：主色占比 ≥ 阈值（0.15）取主色，否则 mean fallback；alpha 二值化可配（默认关）
+- [x] `mode` → **单独 `resample/mode.rs`**（非 dominant.rs 内），per-channel mode（caveat：可能组合出新色，文档注明）
+- [ ] ~~`dominant.rs` 内 `qvote`~~ → **推迟到 Phase 3**（依赖 Oklab k-means 替代 imagequant）
+- [ ] ~~`resample/em.rs` content-adaptive~~ → **推迟**（spec scope 决策：feature gate 单独做，本轮聚焦核心四策略）
+- [x] `ResampleMethod { Majority, Median, Dominant, Mode }`（Qvote/ContentAdaptive 推迟）
+- [x] Config：`resample_method` / `resample_sample_window` / `resample_dominant_threshold` / `resample_dominant_binarize_alpha`
+- [x] CLI `--resample <majority|median|dominant|mode>` + `--sample-window <1-9>`
+- [x] 回归测试：`tests/resample.rs`（sha2 跨平台 + temp_dir，23 passed）
+- [ ] benchmark（`cargo bench` criterion）→ **未做**（可选，后续单独加）
 
 ### 验收
-- median 在抗锯齿图上去 AA 效果优于 majority
-- dominant 在少色 sprite 上保边
-- EM 在感知质量上最优但耗时 10×+（文档标注）
+- ✅ median 去 AA（aa-edges fixture + `sample_window` 差异测试）
+- ✅ dominant 保边（clean fixture 少色 sprite）
+- ✅ 默认 `majority` 零回归（ai-sprite sha256 `802857…9f22` 保持）
+- ⏸ EM 感知最优 → 推迟
 
 ### 风险
-- EM 计算极重 → 必须 feature gate，默认 WASM 不启用，防拖胖体积
-- qvote 原依赖 imagequant → 用 P3 Oklab k-means 替代，结果非 bit-exact 但避 GPL
+- EM 计算极重 → 推迟（feature gate 单独做）
+- qvote imagequant 依赖 → Phase 3 用 Oklab k-means 替代（推迟）
+- ⚠️ **实施新增**：`tests/resample.rs` 原 plan 用 `sha256sum` 外部命令 + `/tmp` 字面路径 → Windows 全挂 7 个；已改 `sha2` crate + `std::env::temp_dir`（见实施记录）
+
+### 实施记录
+
+- **分支**：`feat/phase2-resample`（10 commit，含 review fix `da94df6`，已合并 main `da94df6`）
+- **结果**：`resample/{mod,majority,median,dominant,mode}.rs` + `aa-edges.png` fixture + `tests/resample.rs`
+- **spec 决策落地**：scope 四策略（EM/qvote 推迟）；mode 单独 `mode.rs`（per-channel caveat 注明）；dominant alpha 默认关
+- **关键 fix（review 发现）**：`tests/resample.rs` 用 `sha256sum`（Windows 无此命令）+ `/tmp` 字面路径（cargo-test 的 Windows bin 解析为 `C:\tmp`）→ 7 测试 Windows 全挂。改 `sha2` dev-dep + `std::env::temp_dir`，跨平台 23 passed
+- **观察**：dominant 在 ai-sprite 上输出 ≈ majority（量化后每 cell top 色普遍超 0.15 阈值，dominant 退化为 top color = majority）—— 符合预期，少色场景才有差异
+- **验证**：23 test passed（5 suites），wasm 0 warning，ai-sprite sha256 `802857…9f22` 保持
+- **遗留**：benchmark（criterion）未做；EM / qvote 推迟（qvote 待 Phase 3 Oklab）
 
 ---
 
