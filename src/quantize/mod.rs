@@ -1,6 +1,7 @@
-//! Color quantization: k-means (RGB now, Oklab in Task 4), dithering, palettes.
+//! Color quantization: k-means (RGB or Oklab), dithering, palettes.
 
 mod kmeans;
+pub(crate) mod oklab;
 
 use crate::error::Result;
 use crate::Config;

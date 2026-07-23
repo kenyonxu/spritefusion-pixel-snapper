@@ -75,7 +75,7 @@ impl Default for Config {
             resample_sample_window: 3,
             resample_dominant_threshold: 0.15,
             resample_dominant_binarize_alpha: false,
-            quantize_colorspace: Colorspace::Rgb, // Task 4 flips default to Oklab
+            quantize_colorspace: Colorspace::Oklab,
             quantize_dither: DitherMethod::None,
             quantize_dither_strength: 1.0,
             quantize_preset_palette: PresetPalette::None,

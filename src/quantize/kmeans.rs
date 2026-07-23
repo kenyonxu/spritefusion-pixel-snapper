@@ -1,6 +1,7 @@
 //! Color quantization via k-means++ (seeded ChaCha8Rng for determinism).
 
 use crate::error::{PixelSnapperError, Result};
+use crate::quantize::{oklab, Colorspace};
 use crate::Config;
 use image::{Rgba, RgbaImage};
 use rand::prelude::*;
@@ -15,15 +16,20 @@ pub(crate) fn quantize_kmeans(img: &RgbaImage, config: &Config) -> Result<RgbaIm
         ));
     }
 
+    // Convert an opaque RGBA pixel into the working colorspace used by k-means.
+    // RGB stays as raw 0-255 floats; Oklab applies the perceptual transform.
+    // Branching on `config.quantize_colorspace` is the ONLY place the space is
+    // chosen — distance, mean, and centroid round-trip all operate in this space.
+    let pixel_to_working = |p: &Rgba<u8>| -> [f32; 3] {
+        match config.quantize_colorspace {
+            Colorspace::Rgb => [p[0] as f32, p[1] as f32, p[2] as f32],
+            Colorspace::Oklab => oklab::rgb_to_oklab(p[0], p[1], p[2]),
+        }
+    };
+
     let opaque_pixels: Vec<[f32; 3]> = img
         .pixels()
-        .filter_map(|p| {
-            if p[3] == 0 {
-                None
-            } else {
-                Some([p[0] as f32, p[1] as f32, p[2] as f32])
-            }
-        })
+        .filter_map(|p| if p[3] == 0 { None } else { Some(pixel_to_working(p)) })
         .collect();
     let n_pixels = opaque_pixels.len();
     if n_pixels == 0 {
@@ -126,13 +132,23 @@ pub(crate) fn quantize_kmeans(img: &RgbaImage, config: &Config) -> Result<RgbaIm
         prev_centroids.copy_from_slice(&centroids);
     }
 
+    // Convert a k-means centroid back into an RGB triple for output.
+    // RGB centroids are rounded back to 0-255; Oklab centroids run through
+    // the inverse transform (perceptual → sRGB).
+    let centroid_to_rgb = |c: &[f32; 3]| -> [u8; 3] {
+        match config.quantize_colorspace {
+            Colorspace::Rgb => [c[0].round() as u8, c[1].round() as u8, c[2].round() as u8],
+            Colorspace::Oklab => oklab::oklab_to_rgb(c[0], c[1], c[2]),
+        }
+    };
+
     let mut new_img = RgbaImage::new(img.width(), img.height());
     for (x, y, pixel) in img.enumerate_pixels() {
         if pixel[3] == 0 {
             new_img.put_pixel(x, y, *pixel);
             continue;
         }
-        let p = [pixel[0] as f32, pixel[1] as f32, pixel[2] as f32];
+        let p = pixel_to_working(pixel);
         let mut min_dist = f32::MAX;
         let mut best_c = [pixel[0], pixel[1], pixel[2]];
 
@@ -140,7 +156,7 @@ pub(crate) fn quantize_kmeans(img: &RgbaImage, config: &Config) -> Result<RgbaIm
             let d = dist_sq(&p, c);
             if d < min_dist {
                 min_dist = d;
-                best_c = [c[0].round() as u8, c[1].round() as u8, c[2].round() as u8];
+                best_c = centroid_to_rgb(c);
             }
         }
         new_img.put_pixel(x, y, Rgba([best_c[0], best_c[1], best_c[2], pixel[3]]));

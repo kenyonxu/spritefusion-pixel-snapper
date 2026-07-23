@@ -33,7 +33,12 @@ fn sha256(path: &str) -> String {
 }
 
 /// 1. majority_is_default_and_matches_anchor (spec §Tests)
-/// ai-sprite.png with default config → sha256 anchor unchanged
+/// ai-sprite.png with default config → sha256 anchor unchanged.
+///
+/// Task 4 flipped the default colorspace to Oklab, so this anchor moved from
+/// the Phase 0-2 RGB hash (`802857...9f22`) to the Phase 3 Oklab hash below.
+/// The RGB path is still covered by `tests/quantize.rs::rgb_path_matches_old_anchor`
+/// once `--colorspace rgb` is wired in Task 8.
 #[test]
 fn majority_default_matches_anchor() {
     let out = tmp("majority.png");
@@ -45,8 +50,8 @@ fn majority_default_matches_anchor() {
     let h = sha256(&out);
     assert_eq!(
         h,
-        "8028577762af407b84ce6edb38bf60491973e246c2326dad9f6c7fe8434c9f22",
-        "default majority must match Phase 0/1 anchor"
+        "3a589ee93b8cd2e493baa0d6fb314d279b54a1104165ad754ad4ff6d359e4420",
+        "default majority must match Phase 3 Oklab anchor"
     );
 }
 
