@@ -24,7 +24,6 @@ use image::GenericImageView;
 use detect::{detect, select_best, CutMethod, DetectionCandidate, DetectStrategy};
 use palette::{apply_palette, parse_palette_hex};
 use profile::{compute_profiles, estimate_step_size, resolve_step_sizes};
-use quantize::quantize_image;
 use stabilize::{snap_uniform_cuts, walk, stabilize_both_axes};
 use validate::validate_image_dimensions;
 
@@ -63,7 +62,7 @@ pub(crate) fn process_image_common(input_bytes: &[u8], config: Option<Config>) -
 
     let rgba_img = img.to_rgba8();
 
-    let analysis_img = quantize_image(&rgba_img, &config)?;
+    let analysis_img = quantize::quantize(&rgba_img, &config)?;
     let (profile_x, profile_y) = compute_profiles(&analysis_img)?;
 
     let candidates = detect(

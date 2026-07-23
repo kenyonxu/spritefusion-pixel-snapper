@@ -8,7 +8,7 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Distribution, WeightedIndex};
 
-pub fn quantize_image(img: &RgbaImage, config: &Config) -> Result<RgbaImage> {
+pub(crate) fn quantize_kmeans(img: &RgbaImage, config: &Config) -> Result<RgbaImage> {
     if config.k_colors == 0 {
         return Err(PixelSnapperError::InvalidInput(
             "Number of colors must be greater than 0".to_string(),
