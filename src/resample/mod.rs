@@ -20,8 +20,9 @@ pub fn resample(
     rows: &[usize],
     config: &Config,
 ) -> Result<RgbaImage> {
-    // Task 2 wires config.resample_method; for now hardcode Majority to keep
-    // this task a pure move.
-    let _ = config;
-    majority::resample_majority(img, cols, rows, config)
+    match config.resample_method {
+        ResampleMethod::Majority => majority::resample_majority(img, cols, rows, config),
+        // wired in Tasks 3/4/5
+        _ => majority::resample_majority(img, cols, rows, config),
+    }
 }

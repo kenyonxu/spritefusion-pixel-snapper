@@ -6,6 +6,7 @@
 //! the wasm_bindgen export consumed by JS.
 
 use crate::detect::DetectStrategy;
+use crate::resample::ResampleMethod;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -36,6 +37,10 @@ pub struct Config {
     /// `--json` flag (CLI only; never read under WASM)
     #[allow(dead_code)]
     pub(crate) json_output: bool,
+    pub(crate) resample_method: ResampleMethod,
+    pub(crate) resample_sample_window: usize,
+    pub(crate) resample_dominant_threshold: f64,
+    pub(crate) resample_dominant_binarize_alpha: bool,
 }
 
 impl Default for Config {
@@ -61,6 +66,10 @@ impl Default for Config {
             pixel_size_override: None,
             palette: None,
             json_output: false,
+            resample_method: ResampleMethod::Majority,
+            resample_sample_window: 3,
+            resample_dominant_threshold: 0.15,
+            resample_dominant_binarize_alpha: false,
         }
     }
 }
