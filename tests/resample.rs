@@ -1,29 +1,51 @@
+//! Phase 2 resample integration tests.
+//!
+//! Cross-platform: uses the `sha2` crate (not the `sha256sum` shell command)
+//! and `std::env::temp_dir()` (not a literal `/tmp`), so these run on Windows
+//! as well as Linux/macOS.
+
+use sha2::{Digest, Sha256};
+use std::fs;
 use std::process::Command;
 
-fn run_cli(args: &[&str]) -> String {
+/// Return a writable temp path unique to this test binary.
+fn tmp(name: &str) -> String {
+    let mut p = std::env::temp_dir();
+    p.push(format!("pixel-snapper-p2-{}", name));
+    p.to_string_lossy().to_string()
+}
+
+fn run_cli(args: &[&str]) -> bool {
     let bin = env!("CARGO_BIN_EXE_spritefusion-pixel-snapper");
-    let output = Command::new(bin).args(args).output().unwrap();
-    String::from_utf8_lossy(&output.stdout).to_string()
+    Command::new(bin)
+        .args(args)
+        .output()
+        .expect("failed to run CLI")
+        .status
+        .success()
 }
 
 fn sha256(path: &str) -> String {
-    let out = std::process::Command::new("sha256sum")
-        .arg(path)
-        .output()
-        .unwrap();
-    String::from_utf8_lossy(&out.stdout).split_whitespace().next().unwrap().to_string()
+    let data = fs::read(path).expect("output file not written");
+    let mut hasher = Sha256::new();
+    hasher.update(&data);
+    format!("{:x}", hasher.finalize())
 }
 
 /// 1. majority_is_default_and_matches_anchor (spec §Tests)
 /// ai-sprite.png with default config → sha256 anchor unchanged
 #[test]
 fn majority_default_matches_anchor() {
-    run_cli(&[
-        "tests/fixtures/baseline/ai-sprite.png", "/tmp/p2_majority.png", "16",
-    ]);
-    let h = sha256("/tmp/p2_majority.png");
+    let out = tmp("majority.png");
+    assert!(run_cli(&[
+        "tests/fixtures/baseline/ai-sprite.png",
+        out.as_str(),
+        "16",
+    ]));
+    let h = sha256(&out);
     assert_eq!(
-        h, "8028577762af407b84ce6edb38bf60491973e246c2326dad9f6c7fe8434c9f22",
+        h,
+        "8028577762af407b84ce6edb38bf60491973e246c2326dad9f6c7fe8434c9f22",
         "default majority must match Phase 0/1 anchor"
     );
 }
@@ -32,67 +54,95 @@ fn majority_default_matches_anchor() {
 /// AA-edges fixture → median output sha256 locked (visually sharper than majority)
 #[test]
 fn median_smooths_aa_edges() {
-    let out = "/tmp/p2_median_aa.png";
-    run_cli(&[
-        "tests/fixtures/baseline/aa-edges.png", out, "16",
-        "--resample", "median",
-    ]);
-    let h = sha256(out);
-    // Manual verification: compare /tmp/p2_median_aa.png vs majority output
-    assert!(h.len() == 64, "median output must produce a valid sha256");
+    let out = tmp("median_aa.png");
+    assert!(run_cli(&[
+        "tests/fixtures/baseline/aa-edges.png",
+        out.as_str(),
+        "16",
+        "--resample",
+        "median",
+    ]));
+    let h = sha256(&out);
+    assert_eq!(h.len(), 64, "median output must produce a valid sha256");
 }
 
 /// 3. dominant_preserves_sparse_sprite (spec §Tests)
 /// A 4-color sprite fixture → dominant output sha256 locked
 #[test]
 fn dominant_preserves_sparse_sprite() {
-    let out = "/tmp/p2_dominant_sparse.png";
-    run_cli(&[
-        "tests/fixtures/baseline/clean.png", out, "16",
-        "--resample", "dominant",
-    ]);
-    let h = sha256(out);
-    assert!(h.len() == 64, "dominant output must produce a valid sha256");
+    let out = tmp("dominant_sparse.png");
+    assert!(run_cli(&[
+        "tests/fixtures/baseline/clean.png",
+        out.as_str(),
+        "16",
+        "--resample",
+        "dominant",
+    ]));
+    let h = sha256(&out);
+    assert_eq!(h.len(), 64, "dominant output must produce a valid sha256");
 }
 
 /// 4. mode_emits_per_channel (spec §Tests)
 /// Per-channel mode may emit colors not in source
 #[test]
 fn mode_emits_per_channel() {
-    let out = "/tmp/p2_mode.png";
-    run_cli(&[
-        "tests/fixtures/baseline/ai-sprite.png", out, "16",
-        "--resample", "mode",
-    ]);
-    let h = sha256(out);
-    assert!(h.len() == 64);
+    let out = tmp("mode.png");
+    assert!(run_cli(&[
+        "tests/fixtures/baseline/ai-sprite.png",
+        out.as_str(),
+        "16",
+        "--resample",
+        "mode",
+    ]));
+    let h = sha256(&out);
+    assert_eq!(h.len(), 64);
 }
 
 /// 5. manual_method_respected (spec §Tests)
 /// --resample median actually routes to median (output differs from majority)
 #[test]
 fn manual_method_respected() {
-    let maj = "/tmp/p2_maj.png";
-    let med = "/tmp/p2_med.png";
-    run_cli(&["tests/fixtures/baseline/ai-sprite.png", maj, "16"]);
-    run_cli(&["tests/fixtures/baseline/ai-sprite.png", med, "16",
-              "--resample", "median"]);
-    assert_ne!(sha256(maj), sha256(med),
-        "--resample median must produce different output from default majority");
+    let maj = tmp("maj.png");
+    let med = tmp("med.png");
+    assert!(run_cli(&[
+        "tests/fixtures/baseline/ai-sprite.png",
+        maj.as_str(),
+        "16"
+    ]));
+    assert!(run_cli(&[
+        "tests/fixtures/baseline/ai-sprite.png",
+        med.as_str(),
+        "16",
+        "--resample",
+        "median"
+    ]));
+    assert_ne!(
+        sha256(&maj),
+        sha256(&med),
+        "--resample median must produce different output from default majority"
+    );
 }
 
 #[test]
 fn each_strategy_produces_deterministic_output() {
     for m in ["majority", "median", "dominant", "mode"] {
-        let out = format!("/tmp/p2_{}.png", m);
-        run_cli(&[
-            "tests/fixtures/baseline/ai-sprite.png", &out, "16", "--resample", m,
-        ]);
+        let out = tmp(&format!("det_{}.png", m));
+        assert!(run_cli(&[
+            "tests/fixtures/baseline/ai-sprite.png",
+            out.as_str(),
+            "16",
+            "--resample",
+            m
+        ]));
         let h1 = sha256(&out);
         // run again — determinism
-        run_cli(&[
-            "tests/fixtures/baseline/ai-sprite.png", &out, "16", "--resample", m,
-        ]);
+        assert!(run_cli(&[
+            "tests/fixtures/baseline/ai-sprite.png",
+            out.as_str(),
+            "16",
+            "--resample",
+            m
+        ]));
         let h2 = sha256(&out);
         assert_eq!(h1, h2, "strategy {} not deterministic", m);
         assert!(!h1.is_empty());
@@ -101,10 +151,29 @@ fn each_strategy_produces_deterministic_output() {
 
 #[test]
 fn sample_window_changes_median_output() {
-    run_cli(&["tests/fixtures/baseline/aa-edges.png", "/tmp/p2_w1.png", "16",
-              "--resample", "median", "--sample-window", "1"]);
-    run_cli(&["tests/fixtures/baseline/aa-edges.png", "/tmp/p2_w5.png", "16",
-              "--resample", "median", "--sample-window", "5"]);
-    assert_ne!(sha256("/tmp/p2_w1.png"), sha256("/tmp/p2_w5.png"),
-        "sample-window=1 (alias preserved) should differ from window=5 (AA smoothed)");
+    let w1 = tmp("w1.png");
+    let w5 = tmp("w5.png");
+    assert!(run_cli(&[
+        "tests/fixtures/baseline/aa-edges.png",
+        w1.as_str(),
+        "16",
+        "--resample",
+        "median",
+        "--sample-window",
+        "1"
+    ]));
+    assert!(run_cli(&[
+        "tests/fixtures/baseline/aa-edges.png",
+        w5.as_str(),
+        "16",
+        "--resample",
+        "median",
+        "--sample-window",
+        "5"
+    ]));
+    assert_ne!(
+        sha256(&w1),
+        sha256(&w5),
+        "sample-window=1 (alias preserved) should differ from window=5 (AA smoothed)"
+    );
 }

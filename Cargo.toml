@@ -31,3 +31,7 @@ rayon = "1.10"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 getrandom = { version = "0.2", features = ["js"] }
+
+# Test-only dependencies
+[dev-dependencies]
+sha2 = "0.10"
