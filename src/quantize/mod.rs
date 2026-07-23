@@ -2,9 +2,11 @@
 
 mod kmeans;
 mod dither;
+mod palettes;
 pub(crate) mod oklab;
 
 use crate::error::Result;
+use crate::palette::apply_palette;
 use crate::Config;
 use image::RgbaImage;
 
@@ -41,5 +43,12 @@ pub enum PresetPalette {
 pub fn quantize(img: &RgbaImage, config: &Config) -> Result<RgbaImage> {
     let mut img = img.clone();
     dither::apply(&mut img, config.quantize_dither, config.quantize_dither_strength);
-    kmeans::quantize_kmeans(&img, config)
+    let mut out = kmeans::quantize_kmeans(&img, config)?;
+    // Preset palette snap runs only when a non-None preset is selected. The
+    // custom `--palette` (Config.palette) is applied later in
+    // `process_image_common` and therefore wins on precedence — see CLAUDE.md.
+    if let Some(pal) = palettes::palette(config.quantize_preset_palette) {
+        out = apply_palette(&out, pal)?;
+    }
+    Ok(out)
 }
