@@ -166,6 +166,9 @@ pub fn process_image(
     palette_hex: Option<String>,
     detect_strategy: Option<String>,
     resample_method: Option<String>,
+    colorspace: Option<String>,
+    dither: Option<String>,
+    preset_palette: Option<String>,
 ) -> std::result::Result<Vec<u8>, wasm_bindgen::JsValue> {
     let mut config = Config::default();
     if let Some(k) = k_colors {
@@ -205,6 +208,46 @@ pub fn process_image(
             "mode" => resample::ResampleMethod::Mode,
             _ => return Err(wasm_bindgen::JsValue::from_str(
                 "resample_method must be majority|median|dominant|mode",
+            )),
+        };
+    }
+
+    if let Some(s) = colorspace {
+        config.quantize_colorspace = match s.as_str() {
+            "rgb" => quantize::Colorspace::Rgb,
+            "oklab" => quantize::Colorspace::Oklab,
+            _ => return Err(wasm_bindgen::JsValue::from_str(
+                "colorspace must be rgb|oklab",
+            )),
+        };
+    }
+    if let Some(s) = dither {
+        config.quantize_dither = match s.as_str() {
+            "none" => quantize::DitherMethod::None,
+            "fs" => quantize::DitherMethod::FloydSteinberg,
+            "bayer2" => quantize::DitherMethod::Bayer2,
+            "bayer4" => quantize::DitherMethod::Bayer4,
+            "bayer8" => quantize::DitherMethod::Bayer8,
+            "ordered" => quantize::DitherMethod::Ordered,
+            _ => return Err(wasm_bindgen::JsValue::from_str(
+                "dither must be none|fs|bayer2|bayer4|bayer8|ordered",
+            )),
+        };
+    }
+    if let Some(s) = preset_palette {
+        config.quantize_preset_palette = match s.as_str() {
+            "none" => quantize::PresetPalette::None,
+            "nes" => quantize::PresetPalette::Nes,
+            "gameboy" => quantize::PresetPalette::GameBoy,
+            "sgb" => quantize::PresetPalette::Sgb,
+            "snes" => quantize::PresetPalette::Snes,
+            "pc9801" => quantize::PresetPalette::Pc9801,
+            "msx1" => quantize::PresetPalette::Msx1,
+            "pico8" => quantize::PresetPalette::Pico8,
+            "sweetie16" => quantize::PresetPalette::Sweetie16,
+            "endesga32" => quantize::PresetPalette::Endesga32,
+            _ => return Err(wasm_bindgen::JsValue::from_str(
+                "preset_palette must be none|nes|gameboy|sgb|snes|pc9801|msx1|pico8|sweetie16|endesga32",
             )),
         };
     }
