@@ -33,6 +33,8 @@ pub struct Config {
     pub(crate) runs_min_runs: usize,
     pub(crate) tiled_stddev_threshold: f64,
     pub(crate) tiled_peak_ratio: f64,
+    /// `--json` flag (CLI only; never read under WASM)
+    #[allow(dead_code)]
     pub(crate) json_output: bool,
 }
 

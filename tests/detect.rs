@@ -77,12 +77,13 @@ fn auto_picks_elastic_for_ai_sprite() {
     let config = spritefusion_pixel_snapper::Config::default();
     let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Auto);
     let (best, _all) = select_best(&cands, DetectStrategy::Auto).expect("at least elastic");
-    // ai-sprite: Auto should pick a concrete detector (whichever wins).
-    // The point is a deterministic, non-empty selection.
-    assert!(matches!(
+    // ai-sprite is non-integer-skewed; Elastic (conf 1.0) must outrank
+    // Tiled's low-confidence (0.333) hit after the confidence-first fix.
+    assert_eq!(
         best.detector,
-        DetectStrategy::Runs | DetectStrategy::Tiled | DetectStrategy::Elastic
-    ));
+        DetectStrategy::Elastic,
+        "ai-sprite must pick high-confidence Elastic over low-confidence Tiled"
+    );
 }
 #[test]
 fn elastic_detects_skewed_fixture() {
@@ -98,7 +99,7 @@ fn auto_picks_correct_detector_per_fixture() {
     for (name, expected) in [
         ("clean.png", DetectStrategy::Runs),
         ("complex-bg.png", DetectStrategy::Tiled),
-        ("skewed.png", DetectStrategy::Tiled),
+        ("skewed.png", DetectStrategy::Elastic),
     ] {
         let img = load_fixture(name);
         let (w, h) = img.dimensions();

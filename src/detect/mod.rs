@@ -63,8 +63,24 @@ pub fn detect(
     out
 }
 
-/// Select the best candidate: Auto sorts by priority Runs>Tiled>Elastic then
-/// confidence desc; manual filters to that detector. Returns (best, all).
+/// Minimum confidence for a Runs/Tiled candidate to be trusted over the Elastic
+/// fallback under Auto. Elastic's confidence is peak-strength-based and
+/// saturates near 1.0 on anything with edges, so a bare confidence comparison
+/// would let Elastic win everywhere. A Runs/Tiled hit must clear this bar to
+/// count as a confident integer-scale detection; otherwise we fall back to
+/// whichever candidate has the highest confidence (typically Elastic, which
+/// correctly handles skew / non-integer grids).
+const AUTO_STRONG_CONFIDENCE: f64 = 0.6;
+
+/// Select the best candidate.
+///
+/// - **Manual strategy**: among that detector's candidates, pick by priority
+///   then confidence.
+/// - **Auto**: if any Runs/Tiled candidate clears `AUTO_STRONG_CONFIDENCE`,
+///   pick the highest-priority confident one (Runs > Tiled). Otherwise fall
+///   back to the highest-confidence candidate (usually Elastic).
+///
+/// Returns `(best, all_sorted_by_confidence)`.
 pub fn select_best(
     candidates: &[DetectionCandidate],
     strategy: DetectStrategy,
@@ -85,12 +101,53 @@ pub fn select_best(
         DetectStrategy::Elastic => 2,
         DetectStrategy::Auto => 3,
     };
+    let best = if strategy == DetectStrategy::Auto {
+        let has_strong = filtered.iter().any(|c| {
+            matches!(c.detector, DetectStrategy::Runs | DetectStrategy::Tiled)
+                && c.confidence >= AUTO_STRONG_CONFIDENCE
+        });
+        if has_strong {
+            filtered
+                .iter()
+                .copied()
+                .filter(|c| {
+                    matches!(c.detector, DetectStrategy::Runs | DetectStrategy::Tiled)
+                        && c.confidence >= AUTO_STRONG_CONFIDENCE
+                })
+                .min_by(|a, b| {
+                    priority(a.detector)
+                        .cmp(&priority(b.detector))
+                        .then_with(|| {
+                            b.confidence
+                                .partial_cmp(&a.confidence)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                })
+        } else {
+            filtered.iter().copied().max_by(|a, b| {
+                a.confidence
+                    .partial_cmp(&b.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+        }
+    } else {
+        filtered.iter().copied().min_by(|a, b| {
+            priority(a.detector)
+                .cmp(&priority(b.detector))
+                .then_with(|| {
+                    b.confidence
+                        .partial_cmp(&a.confidence)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+        })
+    };
+
+    let best = best?;
     let mut sorted = filtered.clone();
     sorted.sort_by(|a, b| {
-        priority(a.detector)
-            .cmp(&priority(b.detector))
-            .then(b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal))
+        b.confidence
+            .partial_cmp(&a.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
-    let best = sorted.first().copied();
-    best.map(|b| (b, sorted))
+    Some((best, sorted))
 }
