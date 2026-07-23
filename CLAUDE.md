@@ -37,7 +37,7 @@ The shared pipeline entry [`process_image_common`](src/lib.rs) (pub(crate)) is u
 | Profiles + step estimate | [profile.rs](src/profile.rs) | `compute_profiles` / `estimate_step_size` / `resolve_step_sizes` |
 | Detect (runs/tiled/elastic) | [detect/mod.rs](src/detect/mod.rs) | candidate-returning detectors + Auto select |
 | Stabilize (walker + cuts) | [stabilize.rs](src/stabilize.rs) | `walk`, `stabilize_both_axes`, `stabilize_cuts`, `snap_uniform_cuts`, `sanitize_cuts` |
-| Resample (majority vote) | [resample.rs](src/resample.rs) | grid-cell majority, deterministic RGBA tie-break |
+| Resample (multi-strategy) | [resample/mod.rs](src/resample/mod.rs) | `majority`/`median`/`dominant`/`mode` dispatch |
 | Palette | [palette.rs](src/palette.rs) | `parse_palette_hex` / `apply_palette` / `nearest_palette_color` + `MAX_PALETTE_COLORS` |
 | Validate | [validate.rs](src/validate.rs) | dimension checks |
 
@@ -53,12 +53,12 @@ The crate is `cdylib` + `rlib` ([Cargo.toml](Cargo.toml)): `cdylib` for the WASM
 2. **`compute_profiles`** — projects a `[-1, 0, 1]` gradient kernel across rows and columns → two 1-D edge-strength profiles. Transparent pixels contribute 0.
 3. **`detect`** — runs `runs` (GCD + posterize), `tiled` (Sobel + autocorrelation), and/or `elastic` (gradient walker) per `DetectStrategy`. Returns ranked `DetectionCandidate`s (detector, scale, step, confidence, cut_method). Auto runs all three; selection priority Runs>Tiled>Elastic then confidence.
 4. **`cut`** — branches on the selected candidate's `cut_method`: `Uniform` → `snap_uniform_cuts` (integer grid); `Walker` → `walk` + `stabilize_both_axes` (skew/continuous).
-5. **`resample`** — for each grid cell, picks the most common pixel by **majority vote** (deterministic tie-break by RGBA ordering).
+5. **`resample`** — for each grid cell, reduce to one pixel per `ResampleMethod` (default `majority` = whole-pixel mode + RGBA tie-break). Alternatives: `median` (per-channel median + sample window, AA removal), `dominant` (top color if ≥ threshold, else mean), `mode` (per-channel mode; may emit colors not in source — use `majority` for strict palette preservation).
 6. **`apply_palette`** (optional) — snaps every pixel to its nearest palette color (squared-Euclidean), cached per unique color.
 
 ## Tuning knobs
 
-`Config` (default impl in [src/config.rs](src/config.rs)) holds ~11 parameters that control detection stability. The public CLI exposes `k_colors`, `pixel_size_override`, `palette`, `--detect` (strategy), and `--json` (candidate output); everything else is internal. When debugging "wrong grid detected on this image," the usual suspects are `max_step_ratio` (skew), `walker_search_window_ratio` / `walker_strength_threshold` (peak sensitivity), and `fallback_target_segments` (last-resort grid density).
+`Config` (default impl in [src/config.rs](src/config.rs)) holds ~15 parameters that control detection stability and resampling. The public CLI exposes `k_colors`, `pixel_size_override`, `palette`, `--detect` (strategy), `--resample` (strategy), `--sample-window` (median only), and `--json` (candidate output); everything else is internal. When debugging "wrong grid detected on this image," the usual suspects are `max_step_ratio` (skew), `walker_search_window_ratio` / `walker_strength_threshold` (peak sensitivity), and `fallback_target_segments` (last-resort grid density). For resampling, the internal fields are `resample_method`, `resample_sample_window`, `resample_dominant_threshold`, and `resample_dominant_binarize_alpha`.
 
 ## Constraints enforced in code
 
