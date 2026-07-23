@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://spritefusion.com/pixel-snapper/pipeline-config.v1.json",
+  "$id": "https://pixel-game-kit.dev/pipeline-config.v1.json",
   "title": "PipelineConfig",
   "description": "Pixel Snapper 处理管线配置。CLI/Web/预设文件/配方追溯共用的单一真相源。所有未提供字段使用默认值。",
   "type": "object",

@@ -9,16 +9,16 @@ A single-crate Rust library+binary that fixes AI-generated pixel art by detectin
 ## Build / test / run
 
 ```bash
-cargo build --release                                  # Native CLI → target/release/spritefusion-pixel-snapper
+cargo build --release                                  # Native CLI → target/release/pixel-game-kit
 cargo test                                             # Unit tests live in src/lib.rs under #[cfg(all(test, not(target_arch = "wasm32")))]
 cargo test cli_tests                                   # Run only the CLI argument-parsing tests
 cargo run --release -- <input> <output> [COLORS] [opts]  # Run without installing
-cargo install --path .                                 # Installs the `spritefusion-pixel-snapper` binary
+cargo install --path .                                 # Installs the `pixel-game-kit` binary
 
-wasm-pack build --target web --out-dir pkg --release   # WASM build → pkg/spritefusion_pixel_snapper.js
+wasm-pack build --target web --out-dir pkg --release   # WASM build → pkg/pixel_game_kit.js
 ```
 
-Binary name (and crate name) is `spritefusion-pixel-snapper`; the WASM JS export is `process_image`. No linter/formatter config exists in-repo — `cargo fmt` / `cargo clippy` work but aren't wired to CI.
+Binary name (and crate name) is `pixel-game-kit`; the WASM JS export is `process_image`. No linter/formatter config exists in-repo — `cargo fmt` / `cargo clippy` work but aren't wired to CI.
 
 ## Architecture: dual-target + modular pipeline
 

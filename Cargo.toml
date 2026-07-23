@@ -1,6 +1,6 @@
 [package]
-name = "spritefusion-pixel-snapper"
-version = "1.0.0"
+name = "pixel-game-kit"
+version = "2.0.0"
 edition = "2021"
 description = "Fix AI-generated pixel art by detecting and snapping it to its implicit grid."
 license = "MIT"
@@ -14,7 +14,7 @@ categories = ["command-line-utilities", "multimedia::images"]
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "spritefusion-pixel-snapper"
+name = "pixel-game-kit"
 path = "src/main.rs"
 
 [dependencies]

@@ -281,7 +281,7 @@ git commit -m "feat(resample): wire ResampleMethod through Config"
 
 Create `tests/resample.rs`:
 ```rust
-use spritefusion_pixel_snapper::resample::ResampleMethod;
+use pixel_game_kit::resample::ResampleMethod;
 
 fn load(name: &str) -> image::RgbaImage {
     let bytes = std::fs::read(format!("tests/fixtures/baseline/{}", name)).unwrap();
@@ -877,11 +877,11 @@ If no quick generator is available, a minimal approach: take `clean.png`, scale 
 Replace `tests/resample.rs` content with:
 
 ```rust
-use spritefusion_pixel_snapper::resample::ResampleMethod;
+use pixel_game_kit::resample::ResampleMethod;
 use std::process::Command;
 
 fn run_cli(args: &[&str]) -> String {
-    let bin = env!("CARGO_BIN_EXE_spritefusion-pixel-snapper");
+    let bin = env!("CARGO_BIN_EXE_pixel-game-kit");
     let output = Command::new(bin).args(args).output().unwrap();
     String::from_utf8_lossy(&output.stdout).to_string()
 }

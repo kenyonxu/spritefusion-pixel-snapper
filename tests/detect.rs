@@ -1,4 +1,4 @@
-use spritefusion_pixel_snapper::detect::{
+use pixel_game_kit::detect::{
     detect, select_best, CutMethod, DetectStrategy,
 };
 
@@ -13,7 +13,7 @@ fn elastic_returns_walker_candidate_for_ai_sprite() {
     let (w, h) = img.dimensions();
     // profiles computed by the lib's internal pipeline; for a unit test we
     // pass empty profiles and let detect_elastic recompute via profile module.
-    let config = spritefusion_pixel_snapper::Config::default();
+    let config = pixel_game_kit::Config::default();
     let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Elastic);
     assert!(cands.iter().any(|c| {
         c.detector == DetectStrategy::Elastic && c.cut_method == CutMethod::Walker
@@ -23,7 +23,7 @@ fn elastic_returns_walker_candidate_for_ai_sprite() {
 fn runs_detects_clean_fixture() {
     let img = load_fixture("clean.png");
     let (w, h) = img.dimensions();
-    let config = spritefusion_pixel_snapper::Config::default();
+    let config = pixel_game_kit::Config::default();
     let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Runs);
     assert!(cands.iter().any(|c| {
         c.detector == DetectStrategy::Runs
@@ -40,7 +40,7 @@ fn runs_returns_none_on_tiny_noise() {
             img.put_pixel(x, y, image::Rgba([(x * 31) as u8, (y * 17) as u8, 0, 255]));
         }
     }
-    let config = spritefusion_pixel_snapper::Config::default();
+    let config = pixel_game_kit::Config::default();
     let (w, h) = img.dimensions();
     let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Runs);
     // pure noise has no consistent run gcd; accept either None or low-confidence
@@ -50,7 +50,7 @@ fn runs_returns_none_on_tiny_noise() {
 fn tiled_detects_complex_fixture() {
     let img = load_fixture("complex-bg.png");
     let (w, h) = img.dimensions();
-    let config = spritefusion_pixel_snapper::Config::default();
+    let config = pixel_game_kit::Config::default();
     let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Tiled);
     assert!(cands
         .iter()
@@ -65,7 +65,7 @@ fn tiled_returns_none_on_flat_image() {
             img.put_pixel(x, y, image::Rgba([128, 128, 128, 255]));
         }
     }
-    let config = spritefusion_pixel_snapper::Config::default();
+    let config = pixel_game_kit::Config::default();
     let (w, h) = img.dimensions();
     let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Tiled);
     assert!(cands.is_empty());
@@ -74,7 +74,7 @@ fn tiled_returns_none_on_flat_image() {
 fn auto_picks_elastic_for_ai_sprite() {
     let img = load_fixture("ai-sprite.png");
     let (w, h) = img.dimensions();
-    let config = spritefusion_pixel_snapper::Config::default();
+    let config = pixel_game_kit::Config::default();
     let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Auto);
     let (best, _all) = select_best(&cands, DetectStrategy::Auto).expect("at least elastic");
     // ai-sprite is non-integer-skewed; Elastic (conf 1.0) must outrank
@@ -89,7 +89,7 @@ fn auto_picks_elastic_for_ai_sprite() {
 fn elastic_detects_skewed_fixture() {
     let img = load_fixture("skewed.png");
     let (w, h) = img.dimensions();
-    let config = spritefusion_pixel_snapper::Config::default();
+    let config = pixel_game_kit::Config::default();
     let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Elastic);
     assert!(cands.iter().any(|c| c.detector == DetectStrategy::Elastic));
 }
@@ -103,7 +103,7 @@ fn auto_picks_correct_detector_per_fixture() {
     ] {
         let img = load_fixture(name);
         let (w, h) = img.dimensions();
-        let config = spritefusion_pixel_snapper::Config::default();
+        let config = pixel_game_kit::Config::default();
         let cands = detect(&img, &[], &[], w, h, &config, DetectStrategy::Auto);
         let (best, _) = select_best(&cands, DetectStrategy::Auto).expect("non-empty");
         assert_eq!(

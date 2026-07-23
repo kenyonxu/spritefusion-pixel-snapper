@@ -42,7 +42,7 @@ A tool to snap pixels to a perfect grid. Designed to fix messy and inconsistent 
 ### Brew
 
 ```bash
-brew install Hugo-Dz/tap/spritefusion-pixel-snapper
+brew install Hugo-Dz/tap/pixel-game-kit
 ```
 
 ### Cargo
@@ -50,13 +50,13 @@ brew install Hugo-Dz/tap/spritefusion-pixel-snapper
 Installation with Cargo requires [Rust](https://www.rust-lang.org/). Once installed, the CLI runs as a standalone native binary.
 
 ```bash
-cargo install spritefusion-pixel-snapper
+cargo install pixel-game-kit
 ```
 
 ### Usage
 
 ```text
-spritefusion-pixel-snapper <INPUT> <OUTPUT> [COLOR_COUNT] [OPTIONS]
+pixel-game-kit <INPUT> <OUTPUT> [COLOR_COUNT] [OPTIONS]
 ```
 
 - `<INPUT>`: A PNG/JPEG image, or a directory for batch processing.
@@ -69,21 +69,21 @@ Examples:
 
 ```bash
 # Quantize the image to a 16-color palette
-spritefusion-pixel-snapper input.png output.png 16
+pixel-game-kit input.png output.png 16
 
 # Process a directory as a batch
-spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs 16
+pixel-game-kit sprites/batch_inputs sprites/batch_outputs 16
 
 # Override the auto-detected pixel size
-spritefusion-pixel-snapper input.png output.png --pixel-size 8
-spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs 16 --pixel-size 8
+pixel-game-kit input.png output.png --pixel-size 8
+pixel-game-kit sprites/batch_inputs sprites/batch_outputs 16 --pixel-size 8
 
 # Use a fixed color palette
-spritefusion-pixel-snapper input.png output.png --palette "0d2b45,203c56,544e68,8d697a,d08159,ffaa5e,ffd4a3,ffecd6"
-spritefusion-pixel-snapper sprites/batch_inputs sprites/batch_outputs --palette "0d2b45,203c56,544e68,8d697a"
+pixel-game-kit input.png output.png --palette "0d2b45,203c56,544e68,8d697a,d08159,ffaa5e,ffd4a3,ffecd6"
+pixel-game-kit sprites/batch_inputs sprites/batch_outputs --palette "0d2b45,203c56,544e68,8d697a"
 ```
 
-Run `spritefusion-pixel-snapper --help` to see every option.
+Run `pixel-game-kit --help` to see every option.
 
 ### Build from source
 
@@ -93,7 +93,7 @@ cd spritefusion-pixel-snapper
 cargo build --release
 ```
 
-The binary will be available at `target/release/spritefusion-pixel-snapper`.
+The binary will be available at `target/release/pixel-game-kit`.
 
 ## 🌐 Web (WASM)
 
@@ -111,7 +111,7 @@ wasm-pack build --target web --out-dir pkg --release
 Then use the WASM module in your project:
 
 ```js
-import init, { process_image } from "./pkg/spritefusion_pixel_snapper.js";
+import init, { process_image } from "./pkg/pixel_game_kit.js";
 
 await init();
 

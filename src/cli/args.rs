@@ -20,7 +20,7 @@ pub fn run_cli() -> std::process::ExitCode {
             std::process::ExitCode::SUCCESS
         }
         Ok(CliCommand::Version) => {
-            println!("spritefusion-pixel-snapper {}", env!("CARGO_PKG_VERSION"));
+            println!("pixel-game-kit {}", env!("CARGO_PKG_VERSION"));
             std::process::ExitCode::SUCCESS
         }
         Ok(CliCommand::Run(config)) => match crate::cli::process(&config) {
@@ -32,7 +32,7 @@ pub fn run_cli() -> std::process::ExitCode {
         },
         Err(error) => {
             eprintln!("Error: {error}");
-            eprintln!("Run 'spritefusion-pixel-snapper --help' for usage.");
+            eprintln!("Run 'pixel-game-kit --help' for usage.");
             std::process::ExitCode::from(2)
         }
     }
@@ -41,10 +41,10 @@ pub fn run_cli() -> std::process::ExitCode {
 pub fn print_cli_help() {
     println!(
         concat!(
-            "Sprite Fusion Pixel Snapper {version}\n",
+            "Pixel Game Kit {version}\n",
             "Fix inconsistent pixel art by detecting and snapping it to its implicit grid.\n\n",
             "USAGE:\n",
-            "  spritefusion-pixel-snapper <INPUT> <OUTPUT> [COLORS] [OPTIONS]\n\n",
+            "  pixel-game-kit <INPUT> <OUTPUT> [COLORS] [OPTIONS]\n\n",
             "ARGUMENTS:\n",
             "  <INPUT>   Input PNG/JPEG file, or a directory for batch processing\n",
             "  <OUTPUT>  Output PNG file, or a different output directory for a batch\n",
@@ -59,9 +59,9 @@ pub fn print_cli_help() {
             "  -h, --help                                  Print help\n",
             "  -V, --version                               Print version\n\n",
             "EXAMPLES:\n",
-            "  spritefusion-pixel-snapper input.png output.png\n",
-            "  spritefusion-pixel-snapper input.png output.png 16 --pixel-size 8\n",
-            "  spritefusion-pixel-snapper inputs outputs --palette 0d2b45,ffecd6"
+            "  pixel-game-kit input.png output.png\n",
+            "  pixel-game-kit input.png output.png 16 --pixel-size 8\n",
+            "  pixel-game-kit inputs outputs --palette 0d2b45,ffecd6"
         ),
         version = env!("CARGO_PKG_VERSION")
     );

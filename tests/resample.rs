@@ -16,7 +16,7 @@ fn tmp(name: &str) -> String {
 }
 
 fn run_cli(args: &[&str]) -> bool {
-    let bin = env!("CARGO_BIN_EXE_spritefusion-pixel-snapper");
+    let bin = env!("CARGO_BIN_EXE_pixel-game-kit");
     Command::new(bin)
         .args(args)
         .output()
