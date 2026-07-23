@@ -86,3 +86,24 @@ fn parses_sample_window_flag() {
     let CliCommand::Run(config) = command else { panic!("expected Run"); };
     assert_eq!(config.resample_sample_window, 5);
 }
+
+#[test]
+fn parses_colorspace_flag() {
+    let cmd = parse_cli_args(&args(&["i.png", "o.png", "--colorspace", "rgb"])).unwrap();
+    let CliCommand::Run(c) = cmd else { panic!("expected Run") };
+    assert_eq!(c.quantize_colorspace, crate::quantize::Colorspace::Rgb);
+}
+
+#[test]
+fn parses_dither_flag() {
+    let cmd = parse_cli_args(&args(&["i.png", "o.png", "--dither", "bayer4"])).unwrap();
+    let CliCommand::Run(c) = cmd else { panic!("expected Run") };
+    assert_eq!(c.quantize_dither, crate::quantize::DitherMethod::Bayer4);
+}
+
+#[test]
+fn parses_preset_flag() {
+    let cmd = parse_cli_args(&args(&["i.png", "o.png", "--preset", "pico8"])).unwrap();
+    let CliCommand::Run(c) = cmd else { panic!("expected Run") };
+    assert_eq!(c.quantize_preset_palette, crate::quantize::PresetPalette::Pico8);
+}

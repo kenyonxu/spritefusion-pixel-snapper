@@ -55,6 +55,10 @@ pub fn print_cli_help() {
             "  --detect <auto|runs|tiled|elastic>          Grid detection strategy [default: auto]\n",
             "  --resample <majority|median|dominant|mode|qvote>  Grid-cell reduction [default: majority]\n",
             "  --sample-window <1-9>                       Median neighborhood [default: 3]\n",
+            "  --colorspace <rgb|oklab>                    Quantize colorspace [default: oklab]\n",
+            "  --dither <none|fs|bayer2|bayer4|bayer8|ordered>  Dithering [default: none]\n",
+            "  --dither-strength <0-2>                     Dither strength [default: 1.0]\n",
+            "  --preset <name>                             Snap to preset palette [default: none]\n",
             "  --json                                      Output detection candidates as JSON instead of processing\n",
             "  -h, --help                                  Print help\n",
             "  -V, --version                               Print version\n\n",
@@ -182,6 +186,89 @@ pub fn parse_cli_args(args: &[String]) -> Result<CliCommand> {
             "--json" => {
                 config.json_output = true;
                 i += 1;
+            }
+            "--colorspace" => {
+                let Some(val) = args.get(i + 1) else {
+                    return Err(PixelSnapperError::InvalidInput(
+                        "--colorspace requires a value".to_string(),
+                    ));
+                };
+                config.quantize_colorspace = match val.as_str() {
+                    "rgb" => crate::quantize::Colorspace::Rgb,
+                    "oklab" => crate::quantize::Colorspace::Oklab,
+                    _ => {
+                        return Err(PixelSnapperError::InvalidInput(format!(
+                            "invalid --colorspace '{}' (expected rgb|oklab)",
+                            val
+                        )))
+                    }
+                };
+                i += 2;
+            }
+            "--dither" => {
+                let Some(val) = args.get(i + 1) else {
+                    return Err(PixelSnapperError::InvalidInput(
+                        "--dither requires a value".to_string(),
+                    ));
+                };
+                config.quantize_dither = match val.as_str() {
+                    "none" => crate::quantize::DitherMethod::None,
+                    "fs" => crate::quantize::DitherMethod::FloydSteinberg,
+                    "bayer2" => crate::quantize::DitherMethod::Bayer2,
+                    "bayer4" => crate::quantize::DitherMethod::Bayer4,
+                    "bayer8" => crate::quantize::DitherMethod::Bayer8,
+                    "ordered" => crate::quantize::DitherMethod::Ordered,
+                    _ => {
+                        return Err(PixelSnapperError::InvalidInput(format!(
+                            "invalid --dither '{}' (expected none|fs|bayer2|bayer4|bayer8|ordered)",
+                            val
+                        )))
+                    }
+                };
+                i += 2;
+            }
+            "--dither-strength" => {
+                let Some(val) = args.get(i + 1) else {
+                    return Err(PixelSnapperError::InvalidInput(
+                        "--dither-strength requires a value".to_string(),
+                    ));
+                };
+                match val.parse::<f64>() {
+                    Ok(s) if (0.0..=2.0).contains(&s) => config.quantize_dither_strength = s,
+                    _ => {
+                        return Err(PixelSnapperError::InvalidInput(format!(
+                            "invalid --dither-strength '{}' (expected 0-2)",
+                            val
+                        )))
+                    }
+                }
+                i += 2;
+            }
+            "--preset" => {
+                let Some(val) = args.get(i + 1) else {
+                    return Err(PixelSnapperError::InvalidInput(
+                        "--preset requires a value".to_string(),
+                    ));
+                };
+                config.quantize_preset_palette = match val.as_str() {
+                    "none" => crate::quantize::PresetPalette::None,
+                    "nes" => crate::quantize::PresetPalette::Nes,
+                    "gameboy" => crate::quantize::PresetPalette::GameBoy,
+                    "sgb" => crate::quantize::PresetPalette::Sgb,
+                    "snes" => crate::quantize::PresetPalette::Snes,
+                    "pc9801" => crate::quantize::PresetPalette::Pc9801,
+                    "msx1" => crate::quantize::PresetPalette::Msx1,
+                    "pico8" => crate::quantize::PresetPalette::Pico8,
+                    "sweetie16" => crate::quantize::PresetPalette::Sweetie16,
+                    "endesga32" => crate::quantize::PresetPalette::Endesga32,
+                    _ => {
+                        return Err(PixelSnapperError::InvalidInput(format!(
+                            "invalid --preset '{}'",
+                            val
+                        )))
+                    }
+                };
+                i += 2;
             }
             arg if arg.starts_with("--") => {
                 return Err(PixelSnapperError::InvalidInput(format!(
