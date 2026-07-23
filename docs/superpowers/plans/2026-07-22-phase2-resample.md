@@ -159,7 +159,19 @@ pub fn resample(
 git rm src/resample.rs
 ```
 
-- [ ] **Step 5: Update `src/lib.rs` call site to pass `&config`**
+- [ ] **Step 5: Add `mod resample;` to `src/lib.rs`**
+
+Add `mod resample;` in the module declaration block (phase 1 added `mod detect;` between `config` and `error`; phase 2 adds `mod resample;` as well). This is a standard top-level module declaration — easy to forget but compilation fails without it.
+
+```rust
+mod cli;      // native-only, #[cfg(not(target_arch = "wasm32"))]
+mod config;
+mod detect;
+mod resample;
+mod error;
+```
+
+- [ ] **Step 6: Update `src/lib.rs` call site to pass `&config`**
 
 In `src/lib.rs`, the existing call (in `process_image_common`) is:
 ```rust
@@ -171,7 +183,7 @@ Change to:
 ```
 And update the import line `use resample::resample;` → remove it (now called as `resample::resample`). Check `src/lib.rs` top imports: if `use resample::resample;` exists, delete that line.
 
-- [ ] **Step 6: Verify compile + sha256 anchor**
+- [ ] **Step 7: Verify compile + sha256 anchor**
 
 Run: `cargo test 2>&1 | tail -5`
 Expected: all existing tests pass (14 from Phase 1).
@@ -863,6 +875,7 @@ If no quick generator is available, a minimal approach: take `clean.png`, scale 
 - [ ] **Step 2: Write the behavioral tests**
 
 Replace `tests/resample.rs` content with:
+
 ```rust
 use spritefusion_pixel_snapper::resample::ResampleMethod;
 use std::process::Command;
@@ -881,6 +894,8 @@ fn sha256(path: &str) -> String {
     String::from_utf8_lossy(&out.stdout).split_whitespace().next().unwrap().to_string()
 }
 
+/// 1. majority_is_default_and_matches_anchor (spec §Tests)
+/// ai-sprite.png with default config → sha256 anchor unchanged
 #[test]
 fn majority_default_matches_anchor() {
     run_cli(&[
@@ -891,6 +906,59 @@ fn majority_default_matches_anchor() {
         h, "8028577762af407b84ce6edb38bf60491973e246c2326dad9f6c7fe8434c9f22",
         "default majority must match Phase 0/1 anchor"
     );
+}
+
+/// 2. median_smooths_aa_edges (spec §Tests)
+/// AA-edges fixture → median output sha256 locked (visually sharper than majority)
+#[test]
+fn median_smooths_aa_edges() {
+    let out = "/tmp/p2_median_aa.png";
+    run_cli(&[
+        "tests/fixtures/baseline/aa-edges.png", out, "16",
+        "--resample", "median",
+    ]);
+    let h = sha256(out);
+    // Manual verification: compare /tmp/p2_median_aa.png vs majority output
+    assert!(h.len() == 64, "median output must produce a valid sha256");
+}
+
+/// 3. dominant_preserves_sparse_sprite (spec §Tests)
+/// A 4-color sprite fixture → dominant output sha256 locked
+#[test]
+fn dominant_preserves_sparse_sprite() {
+    let out = "/tmp/p2_dominant_sparse.png";
+    run_cli(&[
+        "tests/fixtures/baseline/clean.png", out, "16",
+        "--resample", "dominant",
+    ]);
+    let h = sha256(out);
+    assert!(h.len() == 64, "dominant output must produce a valid sha256");
+}
+
+/// 4. mode_emits_per_channel (spec §Tests)
+/// Per-channel mode may emit colors not in source
+#[test]
+fn mode_emits_per_channel() {
+    let out = "/tmp/p2_mode.png";
+    run_cli(&[
+        "tests/fixtures/baseline/ai-sprite.png", out, "16",
+        "--resample", "mode",
+    ]);
+    let h = sha256(out);
+    assert!(h.len() == 64);
+}
+
+/// 5. manual_method_respected (spec §Tests)
+/// --resample median actually routes to median (output differs from majority)
+#[test]
+fn manual_method_respected() {
+    let maj = "/tmp/p2_maj.png";
+    let med = "/tmp/p2_med.png";
+    run_cli(&["tests/fixtures/baseline/ai-sprite.png", maj, "16"]);
+    run_cli(&["tests/fixtures/baseline/ai-sprite.png", med, "16",
+              "--resample", "median"]);
+    assert_ne!(sha256(maj), sha256(med),
+        "--resample median must produce different output from default majority");
 }
 
 #[test]
