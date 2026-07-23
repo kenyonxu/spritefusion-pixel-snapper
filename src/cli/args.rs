@@ -50,12 +50,14 @@ pub fn print_cli_help() {
             "  <OUTPUT>  Output PNG file, or a different output directory for a batch\n",
             "  [COLORS]  Number of palette colors [default: 16]\n\n",
             "OPTIONS:\n",
-            "  --pixel-size <PIXELS>  Override the auto-detected pixel size\n",
-            "  --palette <HEX,...>    Use comma-separated 6-digit hex palette colors\n",
-            "  --detect <auto|runs|tiled|elastic>  Grid detection strategy [default: auto]\n",
-            "  --json                 Output detection candidates as JSON instead of processing\n",
-            "  -h, --help             Print help\n",
-            "  -V, --version          Print version\n\n",
+            "  --pixel-size <PIXELS>                       Override the auto-detected pixel size\n",
+            "  --palette <HEX,...>                         Use comma-separated 6-digit hex palette colors\n",
+            "  --detect <auto|runs|tiled|elastic>          Grid detection strategy [default: auto]\n",
+            "  --resample <majority|median|dominant|mode>  Grid-cell reduction [default: majority]\n",
+            "  --sample-window <1-9>                       Median neighborhood [default: 3]\n",
+            "  --json                                      Output detection candidates as JSON instead of processing\n",
+            "  -h, --help                                  Print help\n",
+            "  -V, --version                               Print version\n\n",
             "EXAMPLES:\n",
             "  spritefusion-pixel-snapper input.png output.png\n",
             "  spritefusion-pixel-snapper input.png output.png 16 --pixel-size 8\n",
@@ -140,6 +142,40 @@ pub fn parse_cli_args(args: &[String]) -> Result<CliCommand> {
                         )))
                     }
                 };
+                i += 2;
+            }
+            "--resample" => {
+                let Some(val) = args.get(i + 1) else {
+                    return Err(PixelSnapperError::InvalidInput(
+                        "--resample requires a value".to_string(),
+                    ));
+                };
+                config.resample_method = match val.as_str() {
+                    "majority" => crate::resample::ResampleMethod::Majority,
+                    "median" => crate::resample::ResampleMethod::Median,
+                    "dominant" => crate::resample::ResampleMethod::Dominant,
+                    "mode" => crate::resample::ResampleMethod::Mode,
+                    _ => {
+                        return Err(PixelSnapperError::InvalidInput(format!(
+                            "invalid --resample '{}' (expected majority|median|dominant|mode)",
+                            val
+                        )))
+                    }
+                };
+                i += 2;
+            }
+            "--sample-window" => {
+                let Some(val) = args.get(i + 1) else {
+                    return Err(PixelSnapperError::InvalidInput(
+                        "--sample-window requires a value".to_string(),
+                    ));
+                };
+                match val.parse::<usize>() {
+                    Ok(n) if (1..=9).contains(&n) => config.resample_sample_window = n,
+                    _ => return Err(PixelSnapperError::InvalidInput(format!(
+                        "invalid --sample-window '{}' (expected 1-9)", val
+                    ))),
+                }
                 i += 2;
             }
             "--json" => {

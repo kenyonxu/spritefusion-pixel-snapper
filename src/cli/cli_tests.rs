@@ -68,3 +68,21 @@ fn parses_detect_strategy_flag() {
     };
     assert_eq!(config.detect_strategy, crate::detect::DetectStrategy::Tiled);
 }
+
+#[test]
+fn parses_resample_flag() {
+    let command = parse_cli_args(&args(&[
+        "input.png", "output.png", "--resample", "median",
+    ])).unwrap();
+    let CliCommand::Run(config) = command else { panic!("expected Run"); };
+    assert_eq!(config.resample_method, crate::resample::ResampleMethod::Median);
+}
+
+#[test]
+fn parses_sample_window_flag() {
+    let command = parse_cli_args(&args(&[
+        "input.png", "output.png", "--sample-window", "5",
+    ])).unwrap();
+    let CliCommand::Run(config) = command else { panic!("expected Run"); };
+    assert_eq!(config.resample_sample_window, 5);
+}
