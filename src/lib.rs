@@ -166,6 +166,7 @@ pub fn process_image(
     pixel_size_override: Option<f64>,
     palette_hex: Option<String>,
     detect_strategy: Option<String>,
+    resample_method: Option<String>,
 ) -> std::result::Result<Vec<u8>, wasm_bindgen::JsValue> {
     let mut config = Config::default();
     if let Some(k) = k_colors {
@@ -194,6 +195,18 @@ pub fn process_image(
                     "detect_strategy must be auto|runs|tiled|elastic",
                 ))
             }
+        };
+    }
+
+    if let Some(m) = resample_method {
+        config.resample_method = match m.as_str() {
+            "majority" => resample::ResampleMethod::Majority,
+            "median" => resample::ResampleMethod::Median,
+            "dominant" => resample::ResampleMethod::Dominant,
+            "mode" => resample::ResampleMethod::Mode,
+            _ => return Err(wasm_bindgen::JsValue::from_str(
+                "resample_method must be majority|median|dominant|mode",
+            )),
         };
     }
 
