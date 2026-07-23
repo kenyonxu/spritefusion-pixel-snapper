@@ -124,7 +124,7 @@ done | tee -a .phase0-baseline.log
 
 ---
 
-## Phase 1 — Detector 多样性（最高优先级）
+## Phase 1 — Detector 多样性（最高优先级）✅
 
 **目标**：打破单一梯度 walker 的弱点。干净图用 runs 最准，复杂背景用 tiled 鲁棒，skew 用 elastic。
 
@@ -134,25 +134,39 @@ done | tee -a .phase0-baseline.log
 
 ### 任务
 
-- [ ] `detect/runs.rs`：水平/垂直同色 run 长度收集 → GCD → 返回整数 scale；run 总数 < 阈值返回 None
-- [ ] `detect/tiled.rs`：3×3 区块（25% 重叠）→ 过滤 stddev < 5 平坦块 → Sobel → 剖面自相关（`peak_lag`，max_lag clamp min(n/8,128)，0.6·gmax 阈值）→ mode 投票
-- [ ] `detect/mod.rs`：`DetectStrategy { Auto, Runs, Tiled, Elastic }`
-- [ ] `Auto` 调度：runs 优先（>1 即用）→ 回退 tiled → 都失败用 elastic
-- [ ] `Config.detect.strategy` + 各 detector 参数（runs_min_runs、tiled_stddev_threshold、tiled_peak_ratio）
-- [ ] `Config` 加 `skew_tolerance: Option<f64>`：elastic 模式下走 `max_step_ratio`，runs/tiled 命中整数倍时跳过 walker 直接进 resample
-- [ ] CLI 加 `--detect <auto|runs|tiled|elastic>`（默认 auto）
-- [ ] WASM `process_image` 加 `detect_strategy` 参数
-- [ ] 回归测试：`tests/fixtures/clean_sprite.png`（runs 应命中）、`fixtures/complex_bg.png`（tiled 应命中）、`fixtures/skewed.png`（elastic 应命中）
-- [ ] 文档：CLAUDE.md 的 pipeline 第 3-4 步更新为多 detector
+- [x] `detect/runs.rs`：同色 run 长度 → GCD（posterize(64) 预处理抗噪声，← unfake）
+- [x] `detect/tiled.rs`：3×3 区块 Sobel + `peak_lag` 自相关 + 投票（← unfake edge.rs）
+- [x] `detect/mod.rs`：`DetectStrategy` + `CutMethod` + `DetectionCandidate`（候选 API，spec 决策）+ `select_best`
+- [x] `Auto` 调度 → **实现偏差**：非"priority 回退"，改为"全跑 + strong-priority + confidence-fallback"（见实施记录——review 发现 priority-first 会误选）
+- [x] Config detect 字段（`detect_strategy` / `runs_min_runs` / `tiled_stddev_threshold` / `tiled_peak_ratio`）
+- [ ] ~~`skew_tolerance` 单独字段~~ → **复用 `max_step_ratio`**（elastic 走它，未单独加字段）
+- [x] CLI `--detect` + 额外 `--json`（候选列表输出，spec 候选 API）
+- [x] WASM `process_image` 加 `detect_strategy` 参数 + 额外 `detect_candidates` 导出（U2.2 Web 候选 UI 铺路）
+- [x] 回归测试：`clean.png`（Runs）/`complex-bg.png`（Tiled）/`skewed.png`（Elastic）+ ai-sprite sha256 锚定
+- [x] CLAUDE.md pipeline + 模块表更新为多 detector
+
+**额外交付（spec 范围，PLAN 未单列）**：
+- [x] `CutMethod` 分流：Uniform → `snap_uniform_cuts`（跳过 walker），Walker → `walk`+`stabilize_both_axes`
+- [x] `cli.rs` 拆分 → `cli/{mod,args,batch,cli_tests}.rs`（Phase 0 遗留顺手）
 
 ### 验收
-- 三种 fixture 各自命中预期 detector
-- Auto 模式在每张 fixture 上选出最优 detector
-- 现有行为（不指定 strategy）输出不变
+- ✅ 三 fixture 命中预期（clean→Runs, complex-bg→Tiled, skewed→Elastic）
+- ✅ Auto 选最优（strong-priority + confidence-fallback）
+- ✅ 现有行为不变（ai-sprite sha256 `802857…9f22` 锚定保持）
 
 ### 风险
-- runs 的 GCD 对单像素噪声敏感（一行 off-by-one → GCD=1）→ 加预处理：检测前轻量 posterize 或众数平滑（参考 PixelRefiner `posterize(img,64)`）
-- tiled 的 max_lag=128 上限检测不到超大 scale → 文档注明限制，超大图回退 elastic
+- runs 的 GCD 噪声敏感 → ✅ 已用 posterize(64) 预处理缓解
+- tiled 的 max_lag=128 上限 → ✅ CLAUDE.md 注明，超大图回退 elastic
+- ⚠️ **实施新增**：elastic confidence（峰强度公式）饱和近 1.0，priority-first 会让低置信度 Tiled 压过 Elastic → 已用 strong-priority（runs/tiled conf≥0.6 才优先）+ confidence-fallback 缓解
+
+### 实施记录
+
+- **分支**：`feat/phase1-detectors`（14 commit，含 review fix `b75817c`，已合并 main `b75817c`）
+- **结果**：`detect/{mod,elastic,runs,tiled}.rs` + `cli/{mod,args,batch,cli_tests}.rs`（拆分）+ 3 fixtures + `tests/detect.rs`
+- **关键 fix（review 发现）**：Auto 选择从 priority-first 改为 **strong-priority + confidence-fallback**——根因是 elastic confidence（峰强度）饱和近 1.0，priority-first 让 low-conf Tiled（0.333）在 ai-sprite（非整数图）压过 Elastic（1.0），破坏 sha256 anchor。同时修了 fallback `max_by` compare 方向反转的 bug
+- **spec 增量交付**：候选 API（`DetectionCandidate` + `select_best`，为 U2.2 铺路）、CLI `--json`、WASM `detect_candidates`、`CutMethod` uniform 分流、cli.rs 拆分
+- **验证**：14 test passed，wasm 0 warning，ai-sprite sha256 `802857…9f22` 锚定保持
+- **遗留**：elastic confidence 标尺偏粗糙（峰强度饱和），未来若 runs/tiled 误判仍多可考虑统一置信度模型；cli.rs 拆分后 args.rs/batch.rs 各 < 400 行 ✓
 
 ---
 
