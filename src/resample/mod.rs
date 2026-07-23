@@ -1,6 +1,7 @@
 //! Grid-cell resampling strategies. See `ResampleMethod`.
 
 mod majority;
+mod median;
 
 use crate::error::Result;
 use crate::Config;
@@ -22,7 +23,8 @@ pub fn resample(
 ) -> Result<RgbaImage> {
     match config.resample_method {
         ResampleMethod::Majority => majority::resample_majority(img, cols, rows, config),
-        // wired in Tasks 3/4/5
+        ResampleMethod::Median => median::resample_median(img, cols, rows, config),
+        // wired in Tasks 4/5
         _ => majority::resample_majority(img, cols, rows, config),
     }
 }

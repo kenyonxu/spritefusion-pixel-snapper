@@ -10,7 +10,7 @@ mod error;
 mod palette;
 mod profile;
 mod quantize;
-mod resample;
+pub mod resample;
 mod stabilize;
 mod validate;
 
