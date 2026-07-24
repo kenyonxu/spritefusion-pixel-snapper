@@ -5,12 +5,12 @@
 mod args;
 mod batch;
 
-pub use args::{parse_cli_args, run_cli, CliCommand};
-pub use batch::{
-    collect_batch_inputs, get_output_path, is_supported_image_path, print_processed_image,
-    process, process_batch, process_batch_with_reporter, process_file, process_single,
-    BatchConfig, BatchEvent,
-};
+// Only these two are re-exported: `run_cli` is re-exported by lib.rs (the
+// src/main.rs shim), and args.rs calls `crate::cli::process` internally.
+// cli_tests imports from `super::args` directly, so the other `pub use`s
+// were dead weight.
+pub use args::run_cli;
+pub use batch::process;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod cli_tests;

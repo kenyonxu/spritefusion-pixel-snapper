@@ -22,7 +22,10 @@ pub use cli::run_cli;
 
 use image::GenericImageView;
 use detect::{detect, select_best, CutMethod, DetectionCandidate, DetectStrategy};
-use palette::{apply_palette, parse_palette_hex};
+use palette::apply_palette;
+// Only the wasm32 `process_image` export parses palette hex strings.
+#[cfg(target_arch = "wasm32")]
+use palette::parse_palette_hex;
 use profile::{compute_profiles, estimate_step_size, resolve_step_sizes};
 use stabilize::{snap_uniform_cuts, walk, stabilize_both_axes};
 use validate::validate_image_dimensions;

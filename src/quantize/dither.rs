@@ -17,19 +17,20 @@ fn bayer_matrix(size: usize) -> Vec<Vec<f32>> {
             vec![3.0, 11.0, 1.0, 9.0],
             vec![15.0, 7.0, 13.0, 5.0],
         ],
-        _ => {
-            // 8x8 standard Bayer (recursive from 4x4)
-            let b4 = bayer_matrix(4);
-            let mut m = vec![vec![0.0; 8]; 8];
-            for y in 0..8 {
-                for x in 0..8 {
-                    let bx = (x % 2) + 2 * (x / 2);
-                    let by = (y % 2) + 2 * (y / 2);
-                    m[y][x] = 4.0 * b4[by / 2][bx / 2] + b4[y % 2][x % 2];
-                }
-            }
-            m
-        }
+        // 8x8 standard Bayer matrix (values 0..63, normalized by /64 below).
+        // Hardcoded: the previous "recursive from 4x4" construction produced a
+        // non-standard ordering.
+        8 => vec![
+            vec![0.0, 32.0, 8.0, 40.0, 2.0, 34.0, 10.0, 42.0],
+            vec![48.0, 16.0, 56.0, 24.0, 50.0, 18.0, 58.0, 26.0],
+            vec![12.0, 44.0, 4.0, 36.0, 14.0, 46.0, 6.0, 38.0],
+            vec![60.0, 28.0, 52.0, 20.0, 62.0, 30.0, 54.0, 22.0],
+            vec![3.0, 35.0, 11.0, 43.0, 1.0, 33.0, 9.0, 41.0],
+            vec![51.0, 19.0, 59.0, 27.0, 49.0, 17.0, 57.0, 25.0],
+            vec![15.0, 47.0, 7.0, 39.0, 13.0, 45.0, 5.0, 37.0],
+            vec![63.0, 31.0, 55.0, 23.0, 61.0, 29.0, 53.0, 21.0],
+        ],
+        _ => unreachable!("bayer_matrix only supports sizes 2, 4, 8"),
     };
     raw.into_iter()
         .map(|row| row.into_iter().map(|v| v / (size * size) as f32).collect())
