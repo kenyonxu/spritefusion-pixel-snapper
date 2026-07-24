@@ -251,7 +251,7 @@ done | tee -a .phase0-baseline.log
 ### 风险
 - Oklab 改变输出 → ✅ RGB 兼容（`--colorspace rgb`）+ bump 2.0
 - dithering 确定性 → ✅ FS/Bayer 无 RNG（R1 持）
-- ⚠️ **实施新增**：bayer8 递归非标准（plan bug，`--dither bayer8` 偏）；qvote-lite ≈ majority（真正 per-cell Oklab 推迟）；SGB/SNES 无 canonical palette
+- ⚠️ **实施新增**：bayer8 递归非标准（plan bug）；qvote-lite ≈ majority；SGB/SNES 无 canonical palette —— 前两项已由 cleanup（commit `b027efd`）修复，见下方遗留段
 
 ### 实施记录
 
@@ -259,7 +259,12 @@ done | tee -a .phase0-baseline.log
 - **结果**：`quantize/{mod,kmeans,oklab,dither,palettes}.rs` + `resample/qvote.rs` + Config 字段 + CLI 4 flags + WASM 3 params + `tests/quantize.rs`
 - **关键决策**（spec）：Oklab 默认（无外部用户，质量优先）；调色板 custom > preset；更名 pixel-game-kit + 2.0
 - **执行方式**：subagent-driven（10 task × implementer，混合手动 review 省 reviewer 额度）；关键 gate（sha256 双锚定 + wasm 0 warning）逐 task 验证
-- **遗留**：bayer8 递归非标准（dither=bayer8 输出偏，待修）；qvote-lite（真正 per-cell Oklab clustering 推迟）；native unused-import warning（pre-existing，非 wasm 路径，待清理）；本地目录名仍 `spritefusion-pixel-snapper`（repo rename 不改本地目录）
+- **遗留 → 已清理**（[cleanup spec](docs/superpowers/specs/2026-07-23-phase3-cleanup-design.md) / [plan](docs/superpowers/plans/2026-07-23-phase3-cleanup.md)，commit `b027efd`，2026-07-23）：
+  - ✅ bayer8 递归非标准 → 标准硬编码 8×8 矩阵（0-63 /64）
+  - ✅ qvote-lite → 真实 per-cell Oklab k-means（k=4 + vote 最大聚类中心，≠ majority）
+  - ✅ native unused-import warning → 已清（native 现仅剩 Cargo 工具链 pdb collision，bin/lib 同名导致，非代码可清）
+  - ⏳ 本地目录名仍 `spritefusion-pixel-snapper`（repo rename 不改本地，用户手动 `mv`）
+  - ℹ️ SGB/SNES no-op 保留（无 canonical palette，非 bug）
 
 ---
 
